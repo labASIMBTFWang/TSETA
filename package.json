@@ -1,0 +1,14 @@
+{
+  "name": "tseta",
+  "version": "0.0.1",
+  "contributors": [
+    "Wan-Chen Li <wanwan9121@hotmail.com>",
+    "Hou-Chen Liu <hc666@gate.sinica.edu.tw>"
+  ],
+  "license": "MIT",
+  "description": "TSETA: a third-generation sequencing-based program for single-nucleotide-resolution mapping of meiotic recombination products and repeat-induced point mutations",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tfwangasimb/TSETA.git"
+  }
+}
