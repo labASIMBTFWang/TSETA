@@ -1,0 +1,57 @@
+{
+	"name": "QM6a / CBS1-1 WT pacbio",
+	"ref": "QM6a",
+	"parental": {
+		"QM6a": "QM6a.genome.fa",
+		"CBS1-1": "CBS1-1.genome.fa"
+	},
+	"progeny": {
+		"WTH109": "WTH109.genome.fa",
+		"WTH111": "WTH111.genome.fa",
+		"WTH115": "WTH115.genome.fa",
+		"WTH119": "WTH119.genome.fa"
+	},
+	"chrNames": [
+		"ChI_QM6a", "ChII_QM6a", "ChIII_QM6a", "ChIV_QM6a", "ChV_QM6a", "ChVI_QM6a", "ChVII_QM6a"
+	],
+	"mafft": {
+		"algorithm": "--localpair",
+		"default_algorithm": "",
+		"maxIterate": 1000,
+		"thread": 20
+	},
+	"rDNA": {
+		"range": [2323505, 2387639],
+		"nChr": 6,
+		"sequence": "rDNA.fa"
+	},
+	"GC content": "QM6a_CBS1-1.circos.gc_2Q.txt",
+	"AT-island": "QM6a_AT-island.txt",
+	"crossover": {
+		"closeCOsMinDistance": 5000
+	},
+	"centromere": {
+		"1": [3104000, 3303000],
+		"2": [1940500, 2103000],
+		"3": [1745000, 1905500],
+		"4": [1482500, 1659000],
+		"5": [1164500, 1329000],
+		"6": [1825500, 2034000],
+		"7": [1741000, 1914000]
+	},
+	"telomere": {
+		"1": [[0, 7000], [6825000, 6835803]],
+		"2": [[0, 500], [6216000, 6234656]],
+		"3": [[1, 3500], [5309000, 5311445]],
+		"4": [[1, 20500], [4552000, 4556834]],
+		"5": [[1, 1000], [4148500, 4159965]],
+		"6": [[1, 87500], [3976500, 4000387]],
+		"7": [[1, 23000], [3816500, 3823438]]
+	},
+	"no-co-region": {
+		"num-chr": ["start", "end"]
+	},
+	"ignore-indel-region": {
+		"num-chr": ["start", "end"]
+	}
+}
