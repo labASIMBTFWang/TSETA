@@ -857,7 +857,7 @@ function _render(options) {
 	/**
 	 * @param {number} pos_start bp_start
 	 */
-	function calc_prev_22_colorId(pos_start) {
+	function calc_prev_parentalSNP_colorId(pos_start) {
 		if (prev_22_colorId.length != 2) {
 			return;
 		}
@@ -869,10 +869,11 @@ function _render(options) {
 			let c = seq_list[4][i];
 			let d = seq_list[5][i];
 			let ss = [a, b, c, d];
-			if (ref1 != ref2 &&
-				ss.filter(s => s == ref1).length == 2 &&
-				ss.filter(s => s == ref2).length == 2
-			) {
+
+			let rc1 = ss.filter(s => s == ref1).length;
+			let rc2 = ss.filter(s => s == ref2).length;
+			
+			if (ref1 != ref2 && (rc1 + rc2) == 4) {//SNP 0:4 or 1:3 or 2:2 or 3:1 or 4:0
 				prev_22_colorId[2] = (a == ref1 ? ColorID.dad : (a == ref2 ? ColorID.mom : ColorID.diff));
 				prev_22_colorId[3] = (b == ref1 ? ColorID.dad : (b == ref2 ? ColorID.mom : ColorID.diff));
 				prev_22_colorId[4] = (c == ref1 ? ColorID.dad : (c == ref2 ? ColorID.mom : ColorID.diff));
@@ -913,7 +914,7 @@ function _render(options) {
 					ctx.filter = "brightness(0.8) saturate(2)";
 					
 					if (is_first_identical_seg && colId == ColorID.identical) {
-						calc_prev_22_colorId(bp_start);
+						calc_prev_parentalSNP_colorId(bp_start);
 						colId = prev_22_colorId[seg_id];
 						is_first_identical_seg = false;
 						prev_col_id = colId;
@@ -924,6 +925,9 @@ function _render(options) {
 							colId = prev_col_id;
 							ctx.filter = "saturate(0.5) brightness(1.5)";
 						}
+					}
+					else {
+						prev_col_id = colId;
 					}
 
 					let col = args_colors[colId];
@@ -952,7 +956,7 @@ function _render(options) {
 
 						let colId = color_id & ColorID.mask;
 						if (is_first_identical_seg && colId == ColorID.identical) {
-							calc_prev_22_colorId(ss[si].start);
+							calc_prev_parentalSNP_colorId(ss[si].start);
 							colId = prev_22_colorId[seg_id];
 							let col = args_colors[colId];
 							ctx.fillStyle = col;
@@ -1088,7 +1092,7 @@ function _render(options) {
 						else {
 							let colId = color_id & ColorID.mask;
 							if (is_first_identical_seg && colId == ColorID.identical) {
-								calc_prev_22_colorId(ss[si].start);
+								calc_prev_parentalSNP_colorId(ss[si].start);
 								colId = prev_22_colorId[seg_id];
 								is_first_identical_seg = false;
 								prev_col_id = colId;
