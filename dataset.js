@@ -56,6 +56,12 @@ class Dataset {
 		/** @type {string[]} */
 		this.chrNames = [];
 
+		this.mafft = {};
+		this.mafft.algorithm = "--localpair";
+		this.mafft.default_algorithm = "";
+		this.mafft.maxIterate = 1000;
+		this.mafft.thread = 20;
+
 		this.crossover = {
 			closeCOsMinDistance: 5000,
 		};

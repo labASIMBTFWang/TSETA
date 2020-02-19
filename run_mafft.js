@@ -25,10 +25,10 @@ const tmp_merged_fa = "./tmp/merged_fa";
 
 const filePath_multi_coord_prefix = "tmp/";
 
-const algorithm = dataset["variant calling"].args.algorithm || "--localpair";
-const default_algorithm = dataset["variant calling"].args.default_algorithm || "";
-const maxiterate = dataset["variant calling"].args.maxIterate || 1000;
-const num_thread = dataset["variant calling"].args.thread || 20;
+const algorithm = dataset.mafft.algorithm || "--localpair";
+const default_algorithm = dataset.mafft.default_algorithm || "";
+const maxiterate = dataset.mafft.maxIterate || 1000;
+const num_thread = dataset.mafft.thread || 20;
 
 const ref1_name = dataset.ref;
 const ref2_name = dataset.refs[1];
