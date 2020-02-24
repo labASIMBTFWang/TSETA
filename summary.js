@@ -28,8 +28,6 @@ async function main() {
 		const nChr = chrIdx + 1;
 		const seq = `mafft_ch${nChr}.fa`;
 
-		return;
-
 		fin_list[chrIdx] = ["init"];
 
 		let multi_align_to_segfile_args =  [

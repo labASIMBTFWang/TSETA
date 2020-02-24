@@ -645,8 +645,8 @@ async function multi_coord(nChr) {
 				
 				console.log(output_fasta_file_name);
 
-				let fasta = [seq1_fa, seq2_fa, seq3_fa, seq4_fa, seq5_fa, seq6_fa].join("");
-				fs.writeFileSync(output_fasta_file_name, fasta);
+				let text_fasta = [seq1_fa, seq2_fa, seq3_fa, seq4_fa, seq5_fa, seq6_fa].join("");
+				fs.writeFileSync(output_fasta_file_name, text_fasta);
 				
 				//search next range
 				if (search_end >= ref1_chr_info.length) {
@@ -776,8 +776,8 @@ async function multi_coord(nChr) {
 
 			console.log(output_fasta_file_name);
 
-			let fasta_text = fa_text_list.join("");
-			fs.writeFileSync(output_fasta_file_name, fasta_text);
+			let text_fasta = fa_text_list.join("");
+			fs.writeFileSync(output_fasta_file_name, text_fasta);
 		}
 		else {//check translocation
 			let like_ref1_seq = [...fa_text_list.filter((seq, idx) => {

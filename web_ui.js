@@ -1209,7 +1209,7 @@ function _render(options) {
 					let strand = ar_data[1] < ar_data[0] ? -1 : 0;
 
 					let x1 = ((1 - bp_start) + raw_start) * bp_size;
-					let x2 = ((1 - bp_start) + raw_start + raw_len) * bp_size;
+					let x2 = ((1 - bp_start) + raw_start + raw_len - 1) * bp_size;
 					let len = x2 - x1;
 					let hlen = len * 0.5;
 					let ahlen = len * 0.3;

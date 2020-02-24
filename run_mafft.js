@@ -16,9 +16,6 @@ const argv = argv_parse(process.argv);
 const argv_dataset_path = String(argv["-dataset"] || "");
 const dataset = Dataset.loadFromFile(argv_dataset_path);
 
-const start_nChr = 1;
-const end_nChr = 7;
-
 const input_directory = String(argv["-i"] || "./tmp/seq_frag");
 const mafft_output_directory = String(argv["-o"] || "./tmp/mafft_seq_frag");
 const tmp_merged_fa = "./tmp/merged_fa";
@@ -29,6 +26,7 @@ const algorithm = dataset.mafft.algorithm || "--localpair";
 const default_algorithm = dataset.mafft.default_algorithm || "";
 const maxiterate = dataset.mafft.maxIterate || 1000;
 const num_thread = dataset.mafft.thread || 20;
+const mafft_path = dataset.mafft.path || "mafft";
 
 const ref1_name = dataset.ref;
 const ref2_name = dataset.refs[1];
@@ -102,10 +100,8 @@ if (process.argv[1] == __filename) {
 
 function main() {
 	const all_chr_frag_list = load_frag_id_list();
-
-	const stop_nChr = Math.min(end_nChr, ref1_chr_list.length);
 	
-	for (let nChr = start_nChr; nChr <= stop_nChr; ++nChr) {
+	for (let nChr = 1; nChr <= ref1_chr_list.length; ++nChr) {
 		loop_mafft(all_chr_frag_list, nChr);
 
 		loop_cen_AT_mafft(all_chr_frag_list, nChr);
@@ -173,7 +169,7 @@ function run_multialign(nChr, fragId, _algorithm = "") {
  * @param {string} [_algorithm]
  */
 function run_mafft_(input_path, output_file, _algorithm = "") {
-	let mafft_cmd = `mafft --quiet --thread ${num_thread} ${_algorithm} --maxiterate ${maxiterate} ${input_path} > ${output_file}`;
+	let mafft_cmd = `${mafft_path} --quiet --thread ${num_thread} ${_algorithm} --maxiterate ${maxiterate} ${input_path} > ${output_file}`;
 
 	console.log(mafft_cmd);
 
@@ -226,7 +222,7 @@ function run_mafft_(input_path, output_file, _algorithm = "") {
  * @param {string} [_algorithm]
  */
 async function run_mafft_async(input_path, output_file, _algorithm = "") {
-	let mafft_cmd = `mafft --quiet --thread ${num_thread} ${_algorithm} --maxiterate ${maxiterate} ${input_path} > ${output_file}`;
+	let mafft_cmd = `${mafft_path} --quiet --thread ${num_thread} ${_algorithm} --maxiterate ${maxiterate} ${input_path} > ${output_file}`;
 
 	console.log(mafft_cmd);
 
@@ -264,28 +260,27 @@ function load_AT_island(filename, filter) {
 
 /** @returns {{[nChr:number]:MyCoord[]}} */
 function load_frag_id_list() {
-	const stop_nChr = Math.min(end_nChr, ref1_chr_list.length);
 	const AT_island = load_AT_island(dataset["AT-island"], data => data.length >= 3000);
 
 	/** @type {{[nChr:number]:MyCoord[]}} */
 	const all_chr_frag_list = {};
 
-	for (let nChr = start_nChr; nChr <= stop_nChr; ++nChr) {
+	for (let nChr = 1; nChr <= ref1_chr_list.length; ++nChr) {
 		try {
 			const coords = load_ma_coord(`${filePath_multi_coord_prefix}multi_coord_ch${nChr}.txt`);
 
 			const AT_desc_list = AT_island[nChr].sort((a, b) => b.length - a.length);
 			const cen_range = AT_desc_list[0];
-			{
-				let [at1, at2] = [AT_desc_list[0], AT_desc_list[1]].sort((a, b) => a.start - b.start);
-				console.log("ch", nChr, "at1, 500bp, at2", at1.start, at1.end, at2.start, at2.end);
-				// 合併 2 個鄰近的 AT island，2 個 AT island 間最多能有 1 個 window (QM6a ChIV: 1482500-1559500,1560000-1659000)
-				if ((at2.start - at1.end) <= Math.abs(at1.end - at1.start)) {
-					cen_range.start = at1.start;
-					cen_range.end = at2.end;
-					cen_range.length = at2.end - at1.start;
-				}
-			}
+			// if (0) {
+			// 	let [at1, at2] = [AT_desc_list[0], AT_desc_list[1]].sort((a, b) => a.start - b.start);
+			// 	console.log("ch", nChr, "at1, 500bp, at2", at1.start, at1.end, at2.start, at2.end);
+			// 	// 合併 2 個鄰近的 AT island，2 個 AT island 間最多能有 1 個 window (QM6a ChIV: 1482500-1559500,1560000-1659000)
+			// 	if ((at2.start - at1.end) <= Math.abs(at1.end - at1.start)) {
+			// 		cen_range.start = at1.start;
+			// 		cen_range.end = at2.end;
+			// 		cen_range.length = at2.end - at1.start;
+			// 	}
+			// }
 			console.log("cen", cen_range.start, cen_range.end, cen_range.length);
 
 			let cen_fragId_list = Object.keys(coords).filter(id => {
@@ -460,7 +455,7 @@ function loop_cen_AT_mafft(all_chr_frag_list, nChr) {
 							"--maxiterate", String(maxiterate),
 							qs_file_path,
 						];
-						let mafft_cmd = `mafft ${args.join(" ")} > ${output_qs_filename}`;
+						let mafft_cmd = `${mafft_path} ${args.join(" ")} > ${output_qs_filename}`;
 						console.log(mafft_cmd);
 
 						child_process.execSync(mafft_cmd);
@@ -479,7 +474,7 @@ function loop_cen_AT_mafft(all_chr_frag_list, nChr) {
 							"--maxiterate", String(maxiterate),
 							cs_file_path,
 						];
-						let mafft_cmd = `mafft ${args.join(" ")} > ${output_cs_filename}`;
+						let mafft_cmd = `${mafft_path} ${args.join(" ")} > ${output_cs_filename}`;
 						console.log(mafft_cmd);
 
 						child_process.execSync(mafft_cmd);

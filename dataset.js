@@ -4,7 +4,7 @@ const fs = require("fs");
 const Path = require("path");
 
 const { tsv_parse, _table_to_object_list, table_to_object_list } = require("./tsv_parser.js");
-const { parse_GC_COntent_table, GC_Content_Data } = require("./GC_content_util.js");
+const { parse_GC_Content_table, GC_Content_Data } = require("./GC_content_util.js");
 
 
 /**
@@ -12,10 +12,15 @@ const { parse_GC_COntent_table, GC_Content_Data } = require("./GC_content_util.j
  * @returns {{[parentalName:string]:{[nChr:number]:GC_Content_Data[]}}}
  */
 function loadGCContent(filename) {
-	const text = fs.readFileSync(filename).toString();
-	// @ts-ignore
-	let table = table_to_object_list(tsv_parse(text), ["name", "chr", "start", "end", "gc"]);
-	return parse_GC_COntent_table(table);
+	try {
+		const text = fs.readFileSync(filename).toString();
+		// @ts-ignore
+		let table = table_to_object_list(tsv_parse(text), ["name", "chr", "start", "end", "gc"]);
+		return parse_GC_Content_table(table);
+	}
+	catch (ex) {
+		return null;
+	}
 }
 
 class RibosomalDNA_Data {
@@ -110,7 +115,20 @@ class Dataset {
 	 * @param {number} ref1_pos pos in bp
 	 */
 	getGCByPos(ref_name, nChr, ref1_pos) {
-		return this["GC content"][ref_name][nChr].find(a => ref1_pos > a.start && ref1_pos <= a.end).gc;
+		let row = this["GC content"][ref_name][nChr].find(a => ref1_pos >= a.start && ref1_pos <= a.end);
+		if (row) {
+			return row.gc;
+		}
+		else {
+			console.error({
+				ref_name, nChr, ref1_pos,
+				"s names": Object.keys(this["GC content"]),
+				"chr names": Object.keys(this["GC content"][ref_name]),
+				"rows.length": Object.keys(this["GC content"][ref_name][nChr].length),
+				"chr.rows.length": this["GC content"][ref_name].map(a => a.length).join(","),
+			});
+			throw new Error("getGCByPos(ref_name, nChr, ref1_pos) {");
+		}
 	}
 	
 	/**

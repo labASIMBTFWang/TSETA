@@ -8,6 +8,7 @@ class GC_Content_Data {
 		this.end = 0;
 		this.gc = 0;
 	}
+
 	/**
 	 * @param {Partial<GC_Content_Data>} obj
 	 * @returns {GC_Content_Data}
@@ -27,7 +28,7 @@ class GC_Content_Data {
  * @param {{[key:string]:string}[]} table
  * @returns {{[parentalName:string]:{[nChr:number]:GC_Content_Data[]}}}
  */
-function parse_GC_COntent_table(table) {
+function parse_GC_Content_table(table) {
 	/** @type {{[parentalName:string]:GC_Content_Data[]}} */
 	let name_group = {};
 
@@ -58,12 +59,5 @@ function parse_GC_COntent_table(table) {
 	return name_map;
 }
 
-try {
-	if (module && module.exports) {
-		module.exports.parse_GC_COntent_table = parse_GC_COntent_table;
-		module.exports.GC_Content_Data = GC_Content_Data;
-	}
-}
-catch (ex) {
-}
-
+module.exports.parse_GC_Content_table = parse_GC_Content_table;
+module.exports.GC_Content_Data = GC_Content_Data;

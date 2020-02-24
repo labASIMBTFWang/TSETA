@@ -18,9 +18,6 @@ let mafft_output_directory = String(argv["-i"] || "./tmp/mafft_seq_frag");
 
 const temp_direction_path = "./tmp";
 
-const start_nChr = 1;
-const end_nChr = 7;
-
 
 class MyCoord {
 	constructor() {
@@ -77,10 +74,9 @@ function main() {
 }
 
 function merge_chr_all_fa() {
-	const stop_nChr = Math.min(end_nChr, dataset.chrNames.length);
 	const all_chr_frag_list = load_frag_id_list();
 
-	for (let nChr = start_nChr; nChr <= stop_nChr; ++nChr) {
+	for (let nChr = 1; nChr <= dataset.chrNames.length; ++nChr) {
 		if (all_chr_frag_list[nChr]) {
 			let id_list = all_chr_frag_list[nChr].map(a => a.id);
 
@@ -163,13 +159,12 @@ function merge_chr_all_fa() {
 
 /** @returns {{[nChr:number]:MyCoord[]}} */
 function load_frag_id_list() {
-	const stop_nChr = Math.min(end_nChr, dataset.chrNames.length);
 	const AT_island = load_AT_island(dataset["AT-island"], data => data.length >= 3000);
 
 	/** @type {{[nChr:number]:MyCoord[]}} */
 	const all_chr_frag_list = {};
 
-	for (let nChr = start_nChr; nChr <= stop_nChr; ++nChr) {
+	for (let nChr = 1; nChr <= dataset.chrNames.length; ++nChr) {
 		try {
 			const coords = load_ma_coord(Path.join(temp_direction_path, `multi_coord_ch${nChr}.txt`));
 			all_chr_frag_list[nChr] = Object.keys(coords).map(id => coords[id]);
