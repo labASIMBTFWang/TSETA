@@ -7,22 +7,6 @@ const { tsv_parse, _table_to_object_list, table_to_object_list } = require("./ts
 const { parse_GC_Content_table, GC_Content_Data } = require("./GC_content_util.js");
 
 
-/**
- * @param {string} filename
- * @returns {{[parentalName:string]:{[nChr:number]:GC_Content_Data[]}}}
- */
-function loadGCContent(filename) {
-	try {
-		const text = fs.readFileSync(filename).toString();
-		// @ts-ignore
-		let table = table_to_object_list(tsv_parse(text), ["name", "chr", "start", "end", "gc"]);
-		return parse_GC_Content_table(table);
-	}
-	catch (ex) {
-		return null;
-	}
-}
-
 class RibosomalDNA_Data {
 	constructor() {
 		this.range = [2323505, 2387639];
@@ -36,6 +20,13 @@ class RibosomalDNA_Position_info {
 		this.chr = 6;
 		this.alignment_start = 2600866;
 		this.alignment_end = 0;
+	}
+}
+
+class LoadingFlags {
+	constructor() {
+		this.ribosomal_dna = true;
+		this.gc_content = true;
 	}
 }
 
@@ -150,9 +141,18 @@ class Dataset {
 
 	/**
 	 * @param {string} dataset_path
+	 * @param {LoadingFlags} flags
 	 * @returns {LoadedDataset}
 	 */
-	static loadFromFile(dataset_path) {
+	static loadFromFile(dataset_path, flags = null) {
+		if (!fs.existsSync(dataset_path)) {
+			console.error({
+				error: "No such file or directory",
+				path: dataset_path,
+				absolute: Path.resolve(dataset_path),
+			});
+			throw new Error("No such file or directory");
+		}
 		let obj = JSON.parse(fs.readFileSync(dataset_path).toString());
 		let dataset = Dataset.__fromObject(obj);
 
@@ -160,14 +160,38 @@ class Dataset {
 		// @ts-ignore
 		let loaded = dataset;
 		
-		loaded["GC content"] = loadGCContent(dataset["GC content"]);
-		
-		loaded.rDNA_info = Dataset.__load_rDNA_info_fromDataset(dataset_path);
+		if (!flags || flags.gc_content) {
+			loaded["GC content"] = Dataset.__load_GC_content(dataset["GC content"]);
+		}
+
+		if (!flags || flags.ribosomal_dna) {
+			loaded.rDNA_info = Dataset.__load_rDNA_info_fromDataset(dataset_path);
+		}
 
 		loaded.refs = Object.keys(dataset.parental);
 		loaded.progeny_list = Object.keys(dataset.progeny);
 
 		return loaded;
+	}
+	
+	/**
+	* @param {string} filename
+	* @returns {{[parentalName:string]:{[nChr:number]:GC_Content_Data[]}}}
+	*/
+	static __load_GC_content(filename) {
+		if (!fs.existsSync(filename)) {
+			return null;
+			// console.error({
+			// 	error: "No such file or directory",
+			// 	path: filename,
+			// 	absolute: Path.resolve(filename),
+			// });
+			// throw new Error("No such file or directory");
+		}
+		const text = fs.readFileSync(filename).toString();
+		// @ts-ignore
+		let table = table_to_object_list(tsv_parse(text), ["name", "chr", "start", "end", "gc"]);
+		return parse_GC_Content_table(table);
 	}
 
 	/**
@@ -175,6 +199,15 @@ class Dataset {
 	 * @returns {RibosomalDNA_Position_info}
 	 */
 	static __load_rDNA_info_fromDataset(dataset_path) {
+		if (!fs.existsSync(dataset_path)) {
+			return null;
+			// console.error({
+			// 	error: "No such file or directory",
+			// 	path: dataset_path,
+			// 	absolute: Path.resolve(dataset_path),
+			// });
+			// throw new Error("No such file or directory");
+		}
 		let info_path = Path.join(Path.dirname(dataset_path), "rDNA_info.json");
 		if (fs.existsSync(info_path)) {
 			let data = JSON.parse(fs.readFileSync(info_path).toString());
@@ -196,6 +229,7 @@ class Dataset {
 	}
 }
 
+// @ts-ignore
 class LoadedDataset extends Dataset {
 	constructor() {
 		super();
@@ -207,4 +241,4 @@ class LoadedDataset extends Dataset {
 
 
 module.exports.Dataset = Dataset;
-module.exports.loadGCContent = loadGCContent;
+module.exports.LoadedDataset = LoadedDataset;

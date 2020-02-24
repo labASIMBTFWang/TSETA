@@ -9,18 +9,13 @@ const { tsv_parse, table_to_object_list } = require("./tsv_parser.js");
 
 const { BlastnCoord, execAsync, exec_blastn, parseBlastnResults, blastn_coord } = require("./blastn_util.js");
 const { readFasta, saveFasta, parseFasta, joinFastaSeq } = require("./fasta_util.js");
+const { loadFragIdList } = require("./load_frag_list.js");
 const { Dataset } = require("./dataset.js");
 
 const argv = argv_parse(process.argv);
 
 const argv_dataset_path = String(argv["-dataset"] || "");
 const dataset = Dataset.loadFromFile(argv_dataset_path);
-
-const input_directory = String(argv["-i"] || "./tmp/seq_frag");
-const mafft_output_directory = String(argv["-o"] || "./tmp/mafft_seq_frag");
-const tmp_merged_fa = "./tmp/merged_fa";
-
-const filePath_multi_coord_prefix = "tmp/";
 
 const algorithm = dataset.mafft.algorithm || "--localpair";
 const default_algorithm = dataset.mafft.default_algorithm || "";
@@ -35,13 +30,6 @@ const spore_2_name = dataset.progeny_list[1];
 const spore_3_name = dataset.progeny_list[2];
 const spore_4_name = dataset.progeny_list[3];
 
-if (!fs.existsSync(mafft_output_directory)) {
-	fs.mkdirSync(mafft_output_directory);
-}
-if (!fs.existsSync(tmp_merged_fa)) {
-	fs.mkdirSync(tmp_merged_fa);
-}
-
 const ref1_chr_list = loadChrLength(`./${ref1_name}.length.txt`).list;
 const ref2_chr_list = loadChrLength(`./${ref2_name}.length.txt`).list;
 const s1_chr_list = loadChrLength(`./${spore_1_name}.length.txt`).list;
@@ -49,49 +37,11 @@ const s2_chr_list = loadChrLength(`./${spore_2_name}.length.txt`).list;
 const s3_chr_list = loadChrLength(`./${spore_3_name}.length.txt`).list;
 const s4_chr_list = loadChrLength(`./${spore_4_name}.length.txt`).list;
 
-class MyCoord {
-	constructor() {
-		this.id = "";
-
-		this.start = {
-			search: 0,
-			r1: 0,
-			r2: 0,
-			s1: 0,
-			s2: 0,
-			s3: 0,
-			s4: 0
-		};
-
-		this.end = {
-			search: 0,
-			r1: 0,
-			r2: 0,
-			s1: 0,
-			s2: 0,
-			s3: 0,
-			s4: 0
-		};
-		
-		this.removed = false;
-
-		/** @type {MyCoord[]} */
-		this.list = [];
-
-		this.centromere = false;
-	}
-
-	get length() {
-		return {
-			search: this.end.search - this.start.search,
-			r1: this.end.r1 - this.start.r1,
-			r2: this.end.r2 - this.start.r2,
-			s1: this.end.s1 - this.start.s1,
-			s2: this.end.s2 - this.start.s2,
-			s3: this.end.s3 - this.start.s3,
-			s4: this.end.s4 - this.start.s4
-		};
-	}
+if (!fs.existsSync("tmp/mafft_seq_frag")) {
+	fs.mkdirSync("tmp/mafft_seq_frag");
+}
+if (!fs.existsSync("tmp/merged_fa")) {
+	fs.mkdirSync("tmp/merged_fa");
 }
 
 if (process.argv[1] == __filename) {
@@ -99,7 +49,7 @@ if (process.argv[1] == __filename) {
 }
 
 function main() {
-	const all_chr_frag_list = load_frag_id_list();
+	const all_chr_frag_list = loadFragIdList(dataset, true);
 	
 	for (let nChr = 1; nChr <= ref1_chr_list.length; ++nChr) {
 		loop_mafft(all_chr_frag_list, nChr);
@@ -132,10 +82,10 @@ function loop_mafft(all_chr_frag_list, nChr) {
  */
 function run_multialign(nChr, fragId, _algorithm = "") {
 	const fasta_filename = `ch${nChr}_${fragId}.fa`;
-	const input_path = Path.join(input_directory, fasta_filename);
+	const input_path = `tmp/seq_frag/${fasta_filename}`;
 
 	if (fs.existsSync(input_path)) {
-		const output_file = Path.join(mafft_output_directory, `mafft_${fasta_filename}`);
+		const output_file = `tmp/mafft_seq_frag/mafft_${fasta_filename}`;
 
 		if (fs.existsSync(output_file)) {
 			console.error("skip exist", output_file);
@@ -148,10 +98,10 @@ function run_multialign(nChr, fragId, _algorithm = "") {
 	else {
 		const ref1_filename = `ch${nChr}_${fragId}_ref1.fa`;
 		const ref2_filename = `ch${nChr}_${fragId}_ref2.fa`;
-		const input_ref1_path = Path.join(input_directory, ref1_filename);
-		const input_ref2_path = Path.join(input_directory, ref2_filename);
-		const output_ref1_file = Path.join(mafft_output_directory, `mafft_${ref1_filename}`);
-		const output_ref2_file = Path.join(mafft_output_directory, `mafft_${ref2_filename}`);
+		const input_ref1_path = `tmp/seq_frag/${ref1_filename}`;
+		const input_ref2_path = `tmp/seq_frag/${ref2_filename}`;
+		const output_ref1_file = `tmp/mafft_seq_frag/mafft_${ref1_filename}`;
+		const output_ref2_file = `tmp/mafft_seq_frag/mafft_${ref2_filename}`;
 
 		if (fs.existsSync(input_ref1_path) && fs.existsSync(input_ref2_path)) {
 			let task1 = run_mafft_async(input_ref1_path, output_ref1_file, _algorithm);
@@ -258,130 +208,6 @@ function load_AT_island(filename, filter) {
 	return group;
 }
 
-/** @returns {{[nChr:number]:MyCoord[]}} */
-function load_frag_id_list() {
-	const AT_island = load_AT_island(dataset["AT-island"], data => data.length >= 3000);
-
-	/** @type {{[nChr:number]:MyCoord[]}} */
-	const all_chr_frag_list = {};
-
-	for (let nChr = 1; nChr <= ref1_chr_list.length; ++nChr) {
-		try {
-			const coords = load_ma_coord(`${filePath_multi_coord_prefix}multi_coord_ch${nChr}.txt`);
-
-			const AT_desc_list = AT_island[nChr].sort((a, b) => b.length - a.length);
-			const cen_range = AT_desc_list[0];
-			// if (0) {
-			// 	let [at1, at2] = [AT_desc_list[0], AT_desc_list[1]].sort((a, b) => a.start - b.start);
-			// 	console.log("ch", nChr, "at1, 500bp, at2", at1.start, at1.end, at2.start, at2.end);
-			// 	// 合併 2 個鄰近的 AT island，2 個 AT island 間最多能有 1 個 window (QM6a ChIV: 1482500-1559500,1560000-1659000)
-			// 	if ((at2.start - at1.end) <= Math.abs(at1.end - at1.start)) {
-			// 		cen_range.start = at1.start;
-			// 		cen_range.end = at2.end;
-			// 		cen_range.length = at2.end - at1.start;
-			// 	}
-			// }
-			console.log("cen", cen_range.start, cen_range.end, cen_range.length);
-
-			let cen_fragId_list = Object.keys(coords).filter(id => {
-				let coord = coords[id];
-				if (cen_range.start <= coord.start.r1 && coord.end.r1 <= cen_range.end) {
-					return true;
-				}
-				// else if (coord.end.r1 > cen_range.end && (coord.end.r1 - cen_range.end) <= 5000) {
-				// 	return true;
-				// }
-				else {
-					return false;
-				}
-			});
-			if (cen_fragId_list.length <= 0) {
-				cen_fragId_list = Object.keys(coords).filter(id => {
-					let coord = coords[id];
-					if (coord.start.r1 <= cen_range.start && cen_range.end <= coord.end.r1) {
-						return true;
-					}
-					else {
-						return false;
-					}
-				});
-				if (cen_fragId_list.length <= 0) {
-					cen_fragId_list = Object.keys(coords).filter(id => {
-						let coord = coords[id];
-						if (coord.start.r1 <= cen_range.end && coord.end.r1 >= cen_range.start) {
-							return true;
-						}
-						else {
-							return false;
-						}
-					});
-				}
-			}
-
-			if (cen_fragId_list.length > 1) {
-				let { r1_len, r2_len, s1_len, s2_len, s3_len, s4_len } = cen_fragId_list.reduce((prev, id) => {
-					let rs_length = coords[id].length;
-					let [r1_len, r2_len, s1_len, s2_len, s3_len, s4_len] = [rs_length.r1, rs_length.r2, rs_length.s1, rs_length.s2, rs_length.s3, rs_length.s4];
-					return {
-						r1_len: prev.r1_len + r1_len,
-						r2_len: prev.r2_len + r2_len,
-						s1_len: prev.s1_len + s1_len,
-						s2_len: prev.s2_len + s2_len,
-						s3_len: prev.s3_len + s3_len,
-						s4_len: prev.s4_len + s4_len
-					};
-				}, { r1_len: 0, r2_len: 0, s1_len: 0, s2_len: 0, s3_len: 0, s4_len: 0 });
-
-				let s_len = [s1_len, s2_len, s3_len, s4_len];
-				let qs_len = s_len.map(a => Number((a / r1_len).toFixed(1)));
-				let cs_len = s_len.map(a => Number((a / r2_len).toFixed(1)));
-				
-				let qs_c = qs_len.reduce((prev, curr) => prev + (curr == 1 ? 1 : 0), 0);
-				let cs_c = cs_len.reduce((prev, curr) => prev + (curr == 1 ? 1 : 0), 0);
-
-				if (qs_c >= 2 && cs_c >= 2) {
-					console.log("cen", "ch", nChr, "qs_c", qs_c);
-					console.log("cen", "ch", nChr, "cs_c", cs_c);
-				}
-				else {
-					let l_id = cen_fragId_list[cen_fragId_list.length - 1];
-					let keys = Object.keys(coords);
-					let next_id = keys[keys.indexOf(l_id) + 1];
-
-					cen_fragId_list.push(next_id);
-					console.log("cen", "ch", nChr, "next_id", next_id);
-				}
-			}
-
-			cen_fragId_list.forEach(id => {
-				coords[id].removed = true;
-				console.log("cen", "ch", nChr, "frag", id);
-			});
-
-			coords[cen_fragId_list[0]].list = cen_fragId_list.map(id => coords[id]);
-			coords[cen_fragId_list[0]] = Object.assign({}, coords[cen_fragId_list[0]]);//clone
-
-			coords[cen_fragId_list[0]].removed = false;
-			coords[cen_fragId_list[0]].id = `${cen_fragId_list[0]}_${cen_fragId_list[cen_fragId_list.length - 1]}`;
-			coords[cen_fragId_list[0]].centromere = true;
-
-			all_chr_frag_list[nChr] = Object.keys(coords).map(id => coords[id]).filter(coord => {
-				if (coord.id && !coord.removed) {
-					return true;
-				}
-				else {
-					return false;
-				}
-			});
-		}
-		catch (ex) {
-			console.error(ex);
-		}
-	}
-
-	return all_chr_frag_list;
-}
-
 function loop_cen_AT_mafft(all_chr_frag_list, nChr) {
 	let list = all_chr_frag_list[nChr];
 	list.filter(coord => coord.centromere).forEach(cen_coord => {
@@ -389,19 +215,19 @@ function loop_cen_AT_mafft(all_chr_frag_list, nChr) {
 
 		cen_coord.list.forEach(a => console.log(": cen", "ch", nChr, "frag", a.id));
 
-		const merged_fasta = joinFastaSeq(cen_fragId_list.map(a => `${input_directory}/ch${nChr}_${a}.fa`).map(a => readFasta(a)));
+		const merged_fasta = joinFastaSeq(cen_fragId_list.map(a => `tmp/seq_frag/ch${nChr}_${a}.fa`).map(a => readFasta(a)));
 
-		const src_filename = Path.join(tmp_merged_fa, `ch${nChr}_${cen_fragId_list[0]}_${cen_fragId_list[cen_fragId_list.length - 1]}.fa`);
+		const src_filename = `tmp/merged_fa/ch${nChr}_${cen_fragId_list[0]}_${cen_fragId_list[cen_fragId_list.length - 1]}.fa`;
 		if (!fs.existsSync(src_filename)) {
 			saveFasta(src_filename, merged_fasta);
 		}
 		
 		const qs_file_name = `ch${nChr}_${cen_fragId_list[0]}_${cen_fragId_list[cen_fragId_list.length - 1]}_ref1.fa`;
 		const cs_file_name = `ch${nChr}_${cen_fragId_list[0]}_${cen_fragId_list[cen_fragId_list.length - 1]}_ref2.fa`;
-		const qs_file_path = Path.join(tmp_merged_fa, qs_file_name);
-		const cs_file_path = Path.join(tmp_merged_fa, cs_file_name);
-		const output_qs_filename = Path.join(mafft_output_directory, `mafft_${qs_file_name}`);
-		const output_cs_filename = Path.join(mafft_output_directory, `mafft_${cs_file_name}`);
+		const qs_file_path = `tmp/merged_fa/${qs_file_name}`;
+		const cs_file_path = `tmp/merged_fa/${cs_file_name}`;
+		const output_qs_filename = `tmp/mafft_seq_frag/mafft_${qs_file_name}`;
+		const output_cs_filename = `tmp/mafft_seq_frag/mafft_${cs_file_name}`;
 
 		if (![qs_file_path, cs_file_path, output_qs_filename, output_cs_filename].every(a => fs.existsSync(a))) {
 			exec_blastn(src_filename, src_filename).then(function (result_text) {
@@ -491,25 +317,5 @@ function loop_cen_AT_mafft(all_chr_frag_list, nChr) {
 		//next step
 		// ...
 	});
-}
-
-function load_ma_coord(filename) {
-	const text = fs.readFileSync(filename).toString();
-	let rows = text.trim().split("\n").map(a => a.split(/\t/).map(b => b.trim()).filter(b => b != "|"));
-	/** @type {{[id:string]:MyCoord}} */
-	let map = {};
-	rows.forEach(row => {
-		let [id, type, search, r1, r2, s1, s2, s3, s4] = row;
-		if (!map[id]) {
-			map[id] = Object.assign(new MyCoord(), {
-				id: id,
-			});
-		}
-		map[id][type] = {
-			search, r1, r2, s1, s2, s3, s4,
-		};
-	});
-	
-	return map;
 }
 

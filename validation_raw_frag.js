@@ -8,322 +8,158 @@ const { tsv_parse, table_to_object_list } = require("./tsv_parser.js");
 const { Dataset } = require("./dataset.js");
 const { BlastnCoord, execAsync, exec_blastn, parseBlastnResults, blastn_coord, isCollide, groupByOverlap } = require("./blastn_util.js");
 const { readFasta, saveFasta } = require("./fasta_util.js");
+const { loadFragIdList } = require("./load_frag_list.js");
 
 const argv = argv_parse(process.argv);
+
+const argv_flags = String(argv["-flags"] || "") == "raw" ? "raw" : "";
 
 const argv_dataset_path = String(argv["-dataset"] || "");
 const dataset = Dataset.loadFromFile(argv_dataset_path);
 
-let mafft_output_directory = String(argv["-i"] || "./tmp/mafft_seq_frag");
+const r1_name = dataset.ref;
+const r2_name = dataset.refs[1];
+const s1_name = dataset.progeny_list[0];
+const s2_name = dataset.progeny_list[1];
+const s3_name = dataset.progeny_list[2];
+const s4_name = dataset.progeny_list[3];
 
-const temp_direction_path = "./tmp";
+const r1_chr_list = loadChrLength(`./${r1_name}.length.txt`).list;
+const r2_chr_list = loadChrLength(`./${r2_name}.length.txt`).list;
+const s1_chr_list = loadChrLength(`./${s1_name}.length.txt`).list;
+const s2_chr_list = loadChrLength(`./${s2_name}.length.txt`).list;
+const s3_chr_list = loadChrLength(`./${s3_name}.length.txt`).list;
+const s4_chr_list = loadChrLength(`./${s4_name}.length.txt`).list;
 
+const genome_name_list = [
+	r1_name,
+	r2_name,
+	s1_name,
+	s2_name,
+	s3_name,
+	s4_name,
+];
+const genome_length_list = [
+	r1_chr_list,
+	r2_chr_list,
+	s1_chr_list,
+	s2_chr_list,
+	s3_chr_list,
+	s4_chr_list,
+];
 
-class MyCoord {
-	constructor() {
-		this.id = "";
-		this.start = {
-			search: 0,
-			r1: 0,
-			r2: 0,
-			s1: 0,
-			s2: 0,
-			s3: 0,
-			s4: 0
-		};
-		this.end = {
-			search: 0,
-			r1: 0,
-			r2: 0,
-			s1: 0,
-			s2: 0,
-			s3: 0,
-			s4: 0
-		};
-		
-		this.removed = false;
-
-		/** @type {MyCoord[]} */
-		this.list = [];
-
-		this.centromere = false;
-	}
-
-	get length() {
-		return {
-			search: this.end.search - this.start.search,
-			r1: this.end.r1 - this.start.r1,
-			r2: this.end.r2 - this.start.r2,
-			s1: this.end.s1 - this.start.s1,
-			s2: this.end.s2 - this.start.s2,
-			s3: this.end.s3 - this.start.s3,
-			s4: this.end.s4 - this.start.s4
-		};
-	}
-}
-
-if (process.argv[1] == __filename) {
-	main();
-}
-else {
-	debugger;
-}
+main();
 
 function main() {
-	merge_chr_all_fa();
+	validation_frag({ raw: argv_flags == "raw" });
 }
 
-function merge_chr_all_fa() {
-	const all_chr_frag_list = load_frag_id_list();
+function validation_frag(flags = { raw: true }) {
+	const merge_centromere = !flags.raw;
+	const all_chr_frag_list = loadFragIdList(dataset, merge_centromere);
+
+	const input_path_dir = flags.raw ? "tmp/seq_frag" : "tmp/mafft_seq_frag";
+	
+	/** @type {{ [chrName: string]: string }[]} */
+	let src_raw_genome_list = [];
+	genome_name_list.forEach((genome_name, i) => {
+		let genome_seq = readFasta(`${genome_name}.genome.fa`);
+		src_raw_genome_list[i] = genome_seq;
+	});
 
 	for (let nChr = 1; nChr <= dataset.chrNames.length; ++nChr) {
+		/** @type {{ [chrName: string]: string }} */
+		const src_raw_seq = {};
+		src_raw_genome_list.forEach((src_raw_genome, i) => {
+			const idxChr = nChr - 1;
+			const chr_name = genome_length_list[i][idxChr].chr;
+			src_raw_seq[chr_name] = src_raw_genome[chr_name];
+		});
+		
 		if (all_chr_frag_list[nChr]) {
-			let id_list = all_chr_frag_list[nChr].map(a => a.id);
+			try {
+				const id_list = all_chr_frag_list[nChr].map(a => a.id);
+				
+				const output_fa = {};
 
-			let genome_name_list = [
-				dataset.ref,
-				dataset.refs[1],
-				dataset.progeny_list[0],
-				dataset.progeny_list[1],
-				dataset.progeny_list[2],
-				dataset.progeny_list[3],
-			];
-			let raw_seq = genome_name_list.map((genome_name, i) => {
-				let chr_seq = readFasta(Path.resolve("./", `${genome_name}.genome.fa`));
-				return chr_seq[id_list[i]];
-			});
+				for (let fragId of id_list) {
+					const in_filename = `${input_path_dir}/${flags.raw ? "" : "mafft_"}ch${nChr}_${fragId}.fa`;
 			
-			let output_fa = {};
-			id_list.forEach(i => {
-				let in_filename = `${"./tmp/seq_frag"}/ch${nChr}_${i}.fa`;
-		
-				let in_fa;
+					let in_fa;
 
-				if (fs.existsSync(in_filename)) {
-					in_fa = readFasta(in_filename);
-		
-					//console.log("ch", nChr, "frag", i);
-				}
-				else {
-					let in_ref1_filename = `${"./tmp/seq_frag"}/ch${nChr}_${i}_ref1.fa`;
-					let in_ref2_filename = `${"./tmp/seq_frag"}/ch${nChr}_${i}_ref2.fa`;
-		
-					if (fs.existsSync(in_ref1_filename) && fs.existsSync(in_ref2_filename)) {
-						let in_ref1_fa = readFasta(in_ref1_filename);
-						let in_ref2_fa = readFasta(in_ref2_filename);
-		
-						//console.log("ch", nChr, "frag", i, "ref1 ref2");
-
-						in_fa = Object.assign({}, in_ref1_fa, in_ref2_fa);
-					}
-					else {
-						console.log({
-							in_filename, in_ref1_filename, in_ref2_filename,
-						});
-						throw new Error("ref1 ?? ref2 ??");
-					}
-				}
-
-				Object.keys(in_fa).forEach(seq_name => {
-					let seq = in_fa[seq_name];
-					if (seq) {
-						if (!output_fa[seq_name]) {
-							output_fa[seq_name] = "";
+					if (fs.existsSync(in_filename)) {
+						if (fs.statSync(in_filename).size) {
+							in_fa = readFasta(in_filename);
 						}
-						output_fa[seq_name] += seq;
-						//console.log("seq.len", seq_name, output_fa[seq_name].length, "+", seq.length);
+						else {
+							console.log("invalid fasta", "ch", nChr, "frag", fragId, Path.resolve(in_filename));
+							throw new Error("invalid fasta");
+						}
+						//console.log("ch", nChr, "frag", i);
 					}
 					else {
-						//console.log("skip seq:", i, seq_name);
-					}
-				});
-			});
+						const in_ref1_filename = `${input_path_dir}/${flags.raw ? "" : "mafft_"}ch${nChr}_${fragId}_ref1.fa`;
+						const in_ref2_filename = `${input_path_dir}/${flags.raw ? "" : "mafft_"}ch${nChr}_${fragId}_ref2.fa`;
 			
-			let a = genome_name_list.every((name, idx) => {
-				if (output_fa[name] == raw_seq[idx]) {
-					return true;
+						if (fs.existsSync(in_ref1_filename) && fs.existsSync(in_ref2_filename)) {
+							if (!fs.statSync(in_ref1_filename).size) {
+								console.log("invalid fasta", "ch", nChr, "frag", fragId, "ref1", Path.resolve(in_ref1_filename));
+								throw new Error("invalid fasta ref1");
+							}
+							if (!fs.statSync(in_ref2_filename).size) {
+								console.log("invalid fasta", "ch", nChr, "frag", fragId, "ref2", Path.resolve(in_ref2_filename));
+								throw new Error("invalid fasta ref2");
+							}
+							const in_ref1_fa = readFasta(in_ref1_filename);
+							const in_ref2_fa = readFasta(in_ref2_filename);
+			
+							//console.log("ch", nChr, "frag", i, "ref1 ref2");
+
+							in_fa = Object.assign({}, in_ref1_fa, in_ref2_fa);
+						}
+						else {
+							console.log({
+								in_filename, in_ref1_filename, in_ref2_filename,
+							});
+							throw new Error("ref1 ?? ref2 ??");
+						}
+					}
+
+					Object.keys(in_fa).forEach(chr_seq_name => {
+						/** @type {string} */
+						const _seq = in_fa[chr_seq_name];
+						if (_seq) {
+							const seq = flags.raw ? _seq : _seq.replace(/-/g, "");
+							
+							if (!output_fa[chr_seq_name]) {
+								output_fa[chr_seq_name] = "";
+							}
+
+							const raw_start = output_fa[chr_seq_name].length;
+							const raw_end = raw_start + seq.length;
+							const raw_frag = src_raw_seq[chr_seq_name].slice(raw_start, raw_end);
+							for (let ii = 0; ii < seq.length; ++ii) {
+								if (seq[ii] != raw_frag[ii]) {
+									console.error("error at", in_filename, ii);
+									console.error("src", raw_frag.slice(ii, ii + 10));
+									console.error("res", seq.slice(ii, ii + 10));
+									throw new Error("invalid frag");
+								}
+							}
+							
+							output_fa[chr_seq_name] += seq;
+						}
+					});
 				}
-				else {
-					console.error("error", nChr, name);
-				}
-			});
-			if (a) {
-				console.log(nChr, "ok");
+				console.log("ch", nChr, "ok");
 			}
-		}
+			catch (ex) {
+				console.error(ex);
+			}
+		}//if (all_chr_frag_list[nChr]) {
 		else {
 			console.log("skip", "ch", nChr);
 		}
 	}
-}
-
-/** @returns {{[nChr:number]:MyCoord[]}} */
-function load_frag_id_list() {
-	const AT_island = load_AT_island(dataset["AT-island"], data => data.length >= 3000);
-
-	/** @type {{[nChr:number]:MyCoord[]}} */
-	const all_chr_frag_list = {};
-
-	for (let nChr = 1; nChr <= dataset.chrNames.length; ++nChr) {
-		try {
-			const coords = load_ma_coord(Path.join(temp_direction_path, `multi_coord_ch${nChr}.txt`));
-			all_chr_frag_list[nChr] = Object.keys(coords).map(id => coords[id]);
-		}
-		catch (ex) {
-			console.error(ex);
-		}
-	}
-
-	return all_chr_frag_list;
-}
-
-//main();
-
-/**
- * @param {number} nChr 
- * @param {string[]} file_id_list 
- * @param {string} output_name 
- */
-function old_join_chr_frag(nChr, file_id_list, output_name) {
-	let output_fa = {
-	};
-	
-	file_id_list.forEach(i => {
-		let in_filename = `${mafft_output_directory}/mafft_ch${nChr}_${i}.fa`;
-
-		if (fs.existsSync(in_filename)) {
-			let in_fa = readFasta(in_filename);
-
-			console.log("ch", nChr, "frag", i);
-
-			Object.keys(in_fa).forEach(seq_name => {
-				let seq = in_fa[seq_name];
-				if (seq) {
-					if (!output_fa[seq_name]) {
-						output_fa[seq_name] = "";
-					}
-					output_fa[seq_name] += seq;
-					console.log("seq.len", seq_name, output_fa[seq_name].length, "+", seq.length);
-				}
-				else {
-					console.log("skip seq:", i, seq_name);
-				}
-			});
-		}
-		else {
-			let in_ref1_filename = `${mafft_output_directory}/mafft_ch${nChr}_${i}_ref1.fa`;
-			let in_ref2_filename = `${mafft_output_directory}/mafft_ch${nChr}_${i}_ref2.fa`;
-
-			if (fs.existsSync(in_ref1_filename) && fs.existsSync(in_ref2_filename)) {
-				let in_ref1_fa = readFasta(in_ref1_filename);
-				let in_ref2_fa = readFasta(in_ref2_filename);
-
-				console.log("ch", nChr, "frag", i, "ref1 ref2");
-				
-				let ref1_max_length = Math.max(...Object.values(in_ref1_fa).map(seq => seq.length));
-				let ref2_max_length = Math.max(...Object.values(in_ref2_fa).map(seq => seq.length));
-				let multi_length = ref1_max_length + ref2_max_length;
-				
-				Object.keys(in_ref1_fa).forEach(seq_name => {
-					in_ref1_fa[seq_name] = in_ref1_fa[seq_name].padEnd(ref1_max_length, "-");
-				});
-				Object.keys(in_ref2_fa).forEach(seq_name => {
-					in_ref2_fa[seq_name] = in_ref2_fa[seq_name].padEnd(ref2_max_length, "-");
-				});
-
-				if (ref1_max_length >= ref2_max_length) {
-					Object.keys(in_ref1_fa).forEach(seq_name => {
-						in_ref1_fa[seq_name] = in_ref1_fa[seq_name].padStart(multi_length, "-");
-					});
-					Object.keys(in_ref2_fa).forEach(seq_name => {
-						in_ref2_fa[seq_name] = in_ref2_fa[seq_name].padEnd(multi_length, "-");
-					});
-				}
-				else {
-					Object.keys(in_ref1_fa).forEach(seq_name => {
-						in_ref1_fa[seq_name] = in_ref1_fa[seq_name].padEnd(multi_length, "-");
-					});
-					Object.keys(in_ref2_fa).forEach(seq_name => {
-						in_ref2_fa[seq_name] = in_ref2_fa[seq_name].padStart(multi_length, "-");
-					});
-				}
-				
-				let in_fa = Object.assign({}, in_ref1_fa, in_ref2_fa);
-
-				Object.keys(in_fa).forEach(seq_name => {
-					let seq = in_fa[seq_name];
-					if (seq) {
-						if (!output_fa[seq_name]) {
-							output_fa[seq_name] = "";
-						}
-						output_fa[seq_name] += seq;
-						console.log("indel seq.len", seq_name, output_fa[seq_name].length, "+", seq.length);
-					}
-					else {
-						console.log("skip seq:", i, seq_name);
-					}
-				});
-			}
-			else {
-				console.log("no file:", i);
-				//break;
-			}
-		}
-	});
-
-	saveFasta(output_name, output_fa);
-}
-
-// //let time_to_live = 5;
-// for (let i = 1; i <= num_seq; ++i) {
-// }
-
-/**
- * @param {string} filename
- * @returns {{[nChr:number]:{start:number,end:number,length:number}[]}}
- */
-function load_AT_island(filename, filter) {
-	const text_tab = fs.readFileSync(filename).toString();
-	let table = table_to_object_list(tsv_parse(text_tab), ["chr", "start", "end", "length"]);
-	
-	/** @type {{[nChr:number]:{start:number,end:number,length:number}[]}} */
-	let group = {};
-
-	//group by chr
-	table.forEach(row => {
-		if (!group[row.chr]) {
-			group[row.chr] = [];
-		}
-		let data = {
-			start: Number(row.start),
-			end: Number(row.end),
-			length: Number(row.length),
-		};
-		if (!filter || filter(data)) {
-			group[Number(row.chr)].push(data);
-		}
-	});
-
-	return group;
-}
-
-function load_ma_coord(filename) {
-	const text = fs.readFileSync(filename).toString();
-	let rows = text.trim().split("\n").map(a => a.split(/\t/).map(b => b.trim()).filter(b => b != "|"));
-	/** @type {{[id:string]:MyCoord}} */
-	let map = {};
-	rows.forEach(row => {
-		let [id, type, search, r1, r2, s1, s2, s3, s4] = row;
-		if (!map[id]) {
-			map[id] = Object.assign(new MyCoord(), {
-				id: id,
-			});
-		}
-		map[id][type] = {
-			search, r1, r2, s1, s2, s3, s4,
-		};
-	});
-	
-	return map;
 }
 
