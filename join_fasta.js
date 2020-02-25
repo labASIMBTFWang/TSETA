@@ -7,6 +7,7 @@ const { argv_parse, loadChrLength, array_groupBy } = require("./util.js");
 const { tsv_parse, table_to_object_list } = require("./tsv_parser.js");
 const { Dataset } = require("./dataset.js");
 const { readFasta, saveFasta } = require("./fasta_util.js");
+const { loadFragIdList } = require("./load_frag_list.js");
 
 const argv = argv_parse(process.argv);
 
@@ -74,13 +75,13 @@ function main() {
 }
 
 function merge_chr_all_fa() {
-	const all_chr_frag_list = load_frag_id_list();
+	const all_chr_frag_list = loadFragIdList(dataset, true);//load_frag_id_list();
 
 	for (let nChr = 1; nChr <= ref1_chr_list.length; ++nChr) {
 		if (all_chr_frag_list[nChr]) {
-			let id_list = all_chr_frag_list[nChr].map(a => a.id);
+			//let id_list = all_chr_frag_list[nChr].map(a => a.id);
 	
-			join_chr_frag(nChr, id_list, Path.resolve(get_make_temp_output_chr_path(nChr)));
+			join_chr_frag(nChr, all_chr_frag_list[nChr], Path.resolve(get_make_temp_output_chr_path(nChr)));
 		}
 		else {
 			console.log("skip", "ch", nChr);
@@ -228,20 +229,20 @@ function load_frag_id_list() {
 
 /**
  * @param {number} nChr 
- * @param {string[]} file_id_list 
+ * @param {MyCoord[]} coord_list 
  * @param {string} output_name 
  */
-function join_chr_frag(nChr, file_id_list, output_name) {
+function join_chr_frag(nChr, coord_list, output_name) {
 	let output_fa = {
 	};
 	
-	file_id_list.forEach(i => {
-		let in_filename = `${mafft_output_directory}/mafft_ch${nChr}_${i}.fa`;
+	coord_list.forEach(coord => {
+		let in_filename = `${mafft_output_directory}/mafft_ch${nChr}_${coord.id}.fa`;
 
-		if (fs.existsSync(in_filename)) {
+		if (!coord.centromere && fs.existsSync(in_filename)) {
 			let in_fa = readFasta(in_filename);
 
-			console.log("ch", nChr, "frag", i);
+			console.log("ch", nChr, "frag", coord.id);
 
 			Object.keys(in_fa).forEach(seq_name => {
 				let seq = in_fa[seq_name];
@@ -253,19 +254,19 @@ function join_chr_frag(nChr, file_id_list, output_name) {
 					console.log("seq.len", seq_name, output_fa[seq_name].length, "+", seq.length);
 				}
 				else {
-					console.log("skip seq:", i, seq_name);
+					console.log("skip seq:", coord.id, seq_name);
 				}
 			});
 		}
 		else {
-			let in_ref1_filename = `${mafft_output_directory}/mafft_ch${nChr}_${i}_ref1.fa`;
-			let in_ref2_filename = `${mafft_output_directory}/mafft_ch${nChr}_${i}_ref2.fa`;
+			let in_ref1_filename = `${mafft_output_directory}/mafft_ch${nChr}_${coord.id}_ref1.fa`;
+			let in_ref2_filename = `${mafft_output_directory}/mafft_ch${nChr}_${coord.id}_ref2.fa`;
 
 			if (fs.existsSync(in_ref1_filename) && fs.existsSync(in_ref2_filename)) {
 				let in_ref1_fa = readFasta(in_ref1_filename);
 				let in_ref2_fa = readFasta(in_ref2_filename);
 
-				console.log("ch", nChr, "frag", i, "ref1 ref2");
+				console.log("ch", nChr, "frag", coord.id, "ref1 ref2");
 				
 				let ref1_max_length = Math.max(...Object.values(in_ref1_fa).map(seq => seq.length));
 				let ref2_max_length = Math.max(...Object.values(in_ref2_fa).map(seq => seq.length));
@@ -307,12 +308,12 @@ function join_chr_frag(nChr, file_id_list, output_name) {
 						console.log("indel seq.len", seq_name, output_fa[seq_name].length, "+", seq.length);
 					}
 					else {
-						console.log("skip seq:", i, seq_name);
+						console.log("skip seq:", coord.id, seq_name);
 					}
 				});
 			}
 			else {
-				console.log("no file:", i);
+				console.log("no file:", coord.id);
 				//break;
 			}
 		}

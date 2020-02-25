@@ -107,7 +107,7 @@ class ViewerState {
 	_display_40indel = true;
 
 	/** @type {boolean} */
-	_illegitimate_mutation = true;
+	_display_illegitimate_mutation = true;
 
 	/** @type {number} */
 	_nChr = 1;
@@ -293,11 +293,11 @@ class ViewerState {
 	}
 
 	get display_illegitimate_mutation() {
-		return this._illegitimate_mutation;
+		return this._display_illegitimate_mutation;
 	}
 	set display_illegitimate_mutation(value) {
-		if (this._illegitimate_mutation != value) {
-			this._illegitimate_mutation = value;
+		if (this._display_illegitimate_mutation != value) {
+			this._display_illegitimate_mutation = value;
 			drawFrame();
 		}
 	}
@@ -1148,12 +1148,10 @@ function _render(options) {
 								}
 							}
 							if (b_fill) {
-								if (colId != has_rip)  {
-									debugger;
-								} 
-								ctx.beginPath();
-								ctx.rect(x1, seg_id * (seg_row_height + seg_row_separate) + offset_y, xlen, seg_row_height);
-								ctx.fill();
+								ctx.fillRect(x1, seg_id * (seg_row_height + seg_row_separate) + offset_y, xlen, seg_row_height);
+								// if (colId != has_rip)  {
+								// 	debugger;
+								// } 
 							}
 						}
 					}
@@ -1306,7 +1304,7 @@ function _render(options) {
 	let dp = [
 		viewerState.display_31, viewerState.display_40,
 		viewerState.display_13indel, viewerState.display_22indel, viewerState.display_31indel, viewerState.display_40indel,
-		true,
+		viewerState.display_illegitimate_mutation,
 	];
 
 	// no display 2:2 SNV

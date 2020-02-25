@@ -1,0 +1,57 @@
+{
+	"name": "QM6a / CBS1-1 WT pacbio",
+	"ref": "QM6a_spo11",
+	"parental": {
+		"QM6a_spo11": "QM6a_spo11.genome.fa",
+		"CBS1-1_spo11": "CBS1-1_spo11.genome.fa"
+	},
+	"progeny": {
+		"WTH10618": "WTH10618.genome.fa",
+		"WTH10622": "WTH10622.genome.fa",
+		"WTH10626": "WTH10626.genome.fa",
+		"WTH10630": "WTH10630.genome.fa"
+	},
+	"chrNames": [
+		"ChI_QM6a_spo11", "ChII_QM6a_spo11", "ChIII_QM6a_spo11", "ChIV_QM6a_spo11", "ChV_QM6a_spo11", "ChVI_QM6a_spo11", "ChVII_QM6a_spo11"
+	],
+	"mafft": {
+		"path": "/home/tfwang/mafft-linux64/mafft.bat",
+		"algorithm": "--localpair",
+		"default_algorithm": "",
+		"maxIterate": 1000,
+		"thread": 20
+	},
+	"rDNA": {
+		"nChr": 6,
+		"sequence": "rDNA.fa"
+	},
+	"GC content": "QM6a_spo11_CBS1-1_spo11_GC_content.txt",
+	"AT-island": "QM6a_spo11_AT_island.txt",
+	"crossover": {
+		"closeCOsMinDistance": 5000
+	},
+	"centromere": {
+		"1": [3158001, 3357000],
+		"2": [1940501, 2103000],
+		"3": [1745001, 1905500],
+		"4": [1560001, 1659500],
+		"5": [1164501, 1329000],
+		"6": [1927001, 2034500],
+		"7": [1842501, 2015500]
+	},
+	"telomere": {
+		"1": [[1, 7000], [6877501, 6890123]],
+		"2": [[1, 500], [6206001, 6235039]],
+		"3": [[1, 3500], [5297501, 5304008]],
+		"4": [[1, 20500], [4540501, 4557226]],
+		"5": [[1, 1000], [4146501, 4160249]],
+		"6": [[1, 87500], [3974501, 4000765]],
+		"7": [[1, 30000], [3910501, 3924969]]
+	},
+	"no-co-region": {
+		"num-chr": ["start", "end"]
+	},
+	"ignore-indel-region": {
+		"num-chr": ["start", "end"]
+	}
+}

@@ -13,6 +13,7 @@ const argv = argv_parse(process.argv);
 
 const argv_dataset_path = String(argv["-dataset"] || "");
 const argv_output_prefix = String(argv["--output-prefix"] || "");
+const argv_output_summary_only = !!argv["--output-summary-only"];
 
 const dataset = Dataset.loadFromFile(argv_dataset_path);
 
@@ -21,84 +22,85 @@ let cmds = [];
 main();
 
 async function main() {
-	let fin_list = [];
-	
-	//for each chromosome
-	let tasks = dataset.chrNames.map(async function (chrName, chrIdx) {
-		const nChr = chrIdx + 1;
-		const seq = `mafft_ch${nChr}.fa`;
-
-		fin_list[chrIdx] = ["init"];
-
-		let multi_align_to_segfile_args =  [
-			"--max-old-space-size=4096",
-			"multi_align_to_segfile.js",
-			"-dataset", argv_dataset_path,
-			"-i", seq,
-			"-chr", nChr,
-			"--output-prefix", `${argv_output_prefix}_seg_ch${nChr}`,
-		];
-		try {
-			await spawnNodeAsync(multi_align_to_segfile_args);
-
-			console.log("nChr", nChr, "segfile");
-
-			fin_list[chrIdx].push("segfile");
-		}
-		catch (ex) {
-			console.error(ex);
-			console.error("error", nChr, ["node", ...multi_align_to_segfile_args].join(" "));
-			return;
-		}
+	if (!argv_output_summary_only) {
+		let fin_list = [];
 		
-		let crossover_ars = [
-			"--max-old-space-size=4096",
-			"crossover.js",
-			"-dataset", argv_dataset_path,
-			"--segfile", `${argv_output_prefix}_seg_ch${nChr}.txt`,
-			"--output-prefix", `${argv_output_prefix}_co_ch${nChr}`
-		];
-		try {
-			await spawnNodeAsync(crossover_ars);
+		//for each chromosome
+		let tasks = dataset.chrNames.map(async function (chrName, chrIdx) {
+			const nChr = chrIdx + 1;
+			const seq = `mafft_ch${nChr}.fa`;
 
-			console.log("nChr", nChr, "crossover");
+			fin_list[chrIdx] = ["init"];
 
-			fin_list[chrIdx].push("crossover");
-		}
-		catch (ex) {
-			console.error(ex);
-			console.error("error", nChr, ["node", ...crossover_ars].join(" "));
-			return;
-		}
+			let multi_align_to_segfile_args =  [
+				"--max-old-space-size=4096",
+				"multi_align_to_segfile.js",
+				"-dataset", argv_dataset_path,
+				"-i", seq,
+				"-chr", nChr,
+				"--output-prefix", `${argv_output_prefix}_seg_ch${nChr}`,
+			];
+			try {
+				await spawnNodeAsync(multi_align_to_segfile_args);
 
-		let chr_summary_args = [
-			"--max-old-space-size=4096",
-			"chr_summary.js",
-			"-dataset", argv_dataset_path,
-			"-chr", nChr,
-			"--seq", seq,
-			"--co-list", `${argv_output_prefix}_co_ch${nChr}_co.json`, 
-			"--output-prefix", `${argv_output_prefix}_ch${nChr}`
-		];
-		try {
-			await spawnNodeAsync(chr_summary_args);
+				console.log("nChr", nChr, "segfile");
 
-			console.log("nChr", nChr, "summary");
+				fin_list[chrIdx].push("segfile");
+			}
+			catch (ex) {
+				console.error(ex);
+				console.error("error", nChr, ["node", ...multi_align_to_segfile_args].join(" "));
+				return;
+			}
+			
+			let crossover_ars = [
+				"--max-old-space-size=4096",
+				"crossover.js",
+				"-dataset", argv_dataset_path,
+				"--segfile", `${argv_output_prefix}_seg_ch${nChr}.txt`,
+				"--output-prefix", `${argv_output_prefix}_co_ch${nChr}`
+			];
+			try {
+				await spawnNodeAsync(crossover_ars);
 
-			fin_list[chrIdx].push("summary");
-		}
-		catch (ex) {
-			console.error(ex);
-			console.error("error", nChr, ["node", ...chr_summary_args].join(" "));
-			return;
-		}
-	});
+				console.log("nChr", nChr, "crossover");
 
-	await Promise.all(tasks);
+				fin_list[chrIdx].push("crossover");
+			}
+			catch (ex) {
+				console.error(ex);
+				console.error("error", nChr, ["node", ...crossover_ars].join(" "));
+				return;
+			}
 
-	console.log(fin_list);
+			let chr_summary_args = [
+				"--max-old-space-size=4096",
+				"chr_summary.js",
+				"-dataset", argv_dataset_path,
+				"-chr", nChr,
+				"--seq", seq,
+				"--co-list", `${argv_output_prefix}_co_ch${nChr}_co.json`, 
+				"--output-prefix", `${argv_output_prefix}_ch${nChr}`
+			];
+			try {
+				await spawnNodeAsync(chr_summary_args);
 
-	console.log(cmds.join("\n"));
+				console.log("nChr", nChr, "summary");
+
+				fin_list[chrIdx].push("summary");
+			}
+			catch (ex) {
+				console.error(ex);
+				console.error("error", nChr, ["node", ...chr_summary_args].join(" "));
+				return;
+			}
+		});
+		await Promise.all(tasks);
+
+		console.log(fin_list);
+
+		console.log(cmds.join("\n"));
+	}
 
 	output_final_table();
 

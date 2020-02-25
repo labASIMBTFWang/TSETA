@@ -141,6 +141,8 @@ async function restore_rdna() {
 
 		let new_seq = rdna_seq_list[seqIndex].padEnd(max_length, "-");
 		final_mafft_seq[seqName] = replace_seq_range(ma_seq, min_ma_start, max_ma_end, new_seq);
+
+		//TODO: re-align IGS, rDNA repeat, IGS
 	});
 	
 	console.log("rDNA multi align range", {
@@ -164,7 +166,7 @@ async function restore_rdna() {
 
 			//rebuild pos map
 			{
-				let posmap = _chrPos_to_multialign_posMap(final_mafft_seq[seqName]);
+				let posmap = __chrPos_to_multialign_posMap(final_mafft_seq[seqName]);
 
 				info.alignment_repeats = [];
 				for (let i = 0; i < info.repeats.length; ++i) {
@@ -311,6 +313,48 @@ function _multialign_to_chrPos_posMap(ma_seq) {
 		posmap[index] = nPos;
 
 		if (element != "-") {
+			++nPos;
+		}
+	}
+	return posmap;
+}
+
+
+
+/**
+ * pos: 1 ~ length
+ * @param {string} ma_seq
+ * @returns {number[]}
+ */
+function __chrPos_to_multialign_posMap(ma_seq) {
+	let nPos = 1;
+	let posmap = [];
+	for (let index = 0; index < ma_seq.length; index++) {
+		const element = ma_seq[index];
+		if (element != "-") {
+			posmap[nPos] = index;
+			++nPos;
+		}
+	}
+	return posmap;
+}
+
+/**
+ * pos: 1 ~ length
+ * @param {string} ma_seq
+ * @returns {number[]}
+ */
+function __multialign_to_chrPos_posMap(ma_seq) {
+	let nPos = 1;
+	let posmap = [];
+	for (let index = 0; index < ma_seq.length; index++) {
+		const element = ma_seq[index];
+		
+		if (element == "-") {
+			posmap[index] = Math.max(1, nPos - 1);
+		}
+		else {
+			posmap[index] = nPos;
 			++nPos;
 		}
 	}

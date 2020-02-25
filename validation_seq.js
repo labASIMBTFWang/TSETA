@@ -127,14 +127,6 @@ function find_border(seq_id_list, fa, nChr) {
 		function check(ref1_pos) {
 			let valid = seq_list.length;
 			let valid_2 = seq_list.length;
-			if (nChr == 6 && i == 2086459) {
-				console.log({
-					chr: nChr,
-					ma_pos: i,
-					ref1_pos,
-				});
-				debugger;
-			}
 			if (dataset.isInCentromere(nChr, ref1_pos)) {
 				//skip centromere
 			}

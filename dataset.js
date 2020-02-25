@@ -9,7 +9,6 @@ const { parse_GC_Content_table, GC_Content_Data } = require("./GC_content_util.j
 
 class RibosomalDNA_Data {
 	constructor() {
-		this.range = [2323505, 2387639];
 		this.nChr = 6;
 		this.sequence = "rDNA.fa";
 	}
@@ -68,6 +67,12 @@ class Dataset {
 		/** file path */
 		this["AT-island"] = "";
 
+		/** file path */
+		this["GC content file"] = "";
+
+		/** file path */
+		this["AT-island file"] = "";
+
 		/** @type {{[nChr:number]:number[]}} */
 		this.centromere = {};
 
@@ -112,13 +117,15 @@ class Dataset {
 		}
 		else {
 			console.error({
+				"GC content file": this["GC content file"],
 				ref_name, nChr, ref1_pos,
 				"s names": Object.keys(this["GC content"]),
 				"chr names": Object.keys(this["GC content"][ref_name]),
 				"rows.length": Object.keys(this["GC content"][ref_name][nChr].length),
-				"chr.rows.length": this["GC content"][ref_name].map(a => a.length).join(","),
+				"chr.rows.length": Object.keys(this["GC content"][ref_name]).map(chrName => this["GC content"][ref_name][chrName].length).join(","),
+				"max": this["GC content"][ref_name][nChr].sort((a, b) => b.end - a.end)[0],
 			});
-			throw new Error("getGCByPos(ref_name, nChr, ref1_pos) {");
+			//throw new Error("getGCByPos(ref_name, nChr, ref1_pos) {");
 		}
 	}
 	

@@ -78,18 +78,20 @@ console.log({
 	{
 		ref1_all_gc_table.forEach(group => {
 			group.forEach(gc => {
+				const ref1_chr_info = ref1_chr_list.map[gc.chr];
 				gc.name = ref1_name;
-				gc.chr = ref1_chr_list.map[gc.chr].index;
+				gc.chr = ref1_chr_info.index;
 				gc.start = gc.start + 1;
-				gc.end = gc.end + 1;
+				gc.end = Math.min(gc.end + 1, ref1_chr_info.length);
 			});
 		});
 		ref2_all_gc_table.forEach(group => {
 			group.forEach(gc => {
+				const ref2_chr_info = ref2_chr_list.map[gc.chr];
 				gc.name = ref2_name;
-				gc.chr = ref2_chr_list.map[gc.chr].index;
+				gc.chr = ref2_chr_info.index;
 				gc.start = gc.start + 1;
-				gc.end = gc.end + 1;
+				gc.end = Math.min(gc.end + 1, ref2_chr_info.length);
 			});
 		});
 		
@@ -189,8 +191,9 @@ function make_table(input_filename, output_prifix) {
 			G: 0,
 			C: 0,
 		};
-
-		for (let i = 0, length = 0, start = 0; i < seq.length; ++i) {
+		
+		let i = 0, length = 0, start = 0;
+		for (; i < seq.length; ++i) {
 			const v = seq[i].toUpperCase();
 			
 			++counter[v];
@@ -230,6 +233,17 @@ function make_table(input_filename, output_prifix) {
 					C: 0,
 				};//clear
 			}
+		}
+		if (length < argv_window_size) {
+			let gc = counter.G + counter.C;
+			let gc_content = 100 * gc / (counter.A + counter.T + gc);
+
+			gc_table.push({
+				chr: name,
+				start: start,
+				end: i,
+				gc: gc_content,
+			});
 		}
 		all_gc_table.push(gc_table);
 		all_island_table.push(island_table);
