@@ -155,7 +155,7 @@ class ViewerState {
 	
 	animationFrameId = 0;
 
-	_gc_content_clip_indel = false;
+	_gc_content_clip_indel = true;
 
 	_display_rdna_border = false;
 
@@ -1264,6 +1264,13 @@ function _render(options) {
 			return Math.min(...d.repeats.map((a, b) => Math.abs(a[1] - a[0])));
 		}));
 		if ((min_len_rDNA * bp_size) >= 1) {
+			ctx.save();
+
+			//if (x2 >= 0 && x1 <= max_view_width) {
+			ctx.beginPath();
+			ctx.rect(0, 0, max_view_width, 6 * (seg_row_height + seg_row_separate));
+			ctx.clip();
+
 			for (let seg_id = 0; seg_id < seq_list.length; ++seg_id) {
 				let y = seg_id * (seg_row_height + seg_row_separate);
 				let cy = y + seg_row_hheight;
@@ -1316,6 +1323,8 @@ function _render(options) {
 					}
 				});
 			}
+
+			ctx.restore();
 		}
 		
 		if (viewerState.display_rdna_border) {
@@ -1484,13 +1493,13 @@ function _render(options) {
 					ctx.fillStyle = "#FFFFFF";
 					let ss = region_rect[sid];
 					for (let si = 0; si < ss.length; ++si) {
-						let start = ((1 - bp_start) + ss[si].start) * bp_size;
-						let end = ((1 - bp_start) + ss[si].end) * bp_size;
-						if (end >= 0 && start <= max_view_width) {
-							let color_id = ss[si].col;
-							if (color_id & ColorID.indel_mask) {
-							}
-							else {
+						let color_id = ss[si].col;
+						if (color_id & ColorID.indel_mask) {
+						}
+						else {
+							let start = ((1 - bp_start) + ss[si].start) * bp_size;
+							let end = ((1 - bp_start) + ss[si].end) * bp_size;
+							if (end >= 0 && start <= max_view_width) {
 								let row_y_bottom = 1 * (gc_max_height + seg_row_separate);
 								let row_y_top = row_y_bottom - gc_max_height;
 								ctx.rect(start, row_y_top, end - start, gc_max_height);
@@ -1502,11 +1511,9 @@ function _render(options) {
 				ctx.clip();
 			}
 
+			let last_x = max_view_width;
 			ctx.beginPath();
 			ctx.moveTo(0, gc_max_height);
-			const wnd_sz = 5000 * bp_size;
-			const gc_gap_threshold = Math.max(Math.ceil(wnd_sz), viewerState.gc_gap_threshold || 2);
-			let last_x = max_view_width;
 			for (let i = 0; i < gc_list.length; ++i) {
 				let data = gc_list[i];
 				let start = ref_mapto_ma[data.start];
@@ -1525,29 +1532,16 @@ function _render(options) {
 					let gc = (data.gc || 0) * gc_max_height / 100;
 					let y = avg_bottom - gc;
 
-					if (w > gc_gap_threshold) {
-						ctx.lineTo(x1, y);
-						ctx.lineTo(x1 + wnd_sz, y);
-						ctx.lineTo(x1 + wnd_sz, gc_max_height);
-						ctx.lineTo(x2, gc_max_height);
-						ctx.lineTo(x2, y);
-					}
-					else {
-						ctx.lineTo(x1, y);
-						ctx.lineTo(x2, y);
-					}
+					ctx.lineTo(x1, y);
+					ctx.lineTo(x2, y);
 					last_x = x2;
 				}
 			}
 			ctx.lineTo(last_x, gc_max_height);
-			//ctx.lineTo(max_view_width, gc_max_height - seg_row_separate);
 			ctx.strokeStyle = "black";
 			ctx.stroke();
-			if (viewerState.gc_gap_color) {
-				ctx.fillStyle = viewerState.gc_gap_color || "#FFFF0033";//"#FFFF0033"
-				ctx.closePath();
-				ctx.fill();
-			}
+			ctx.fillStyle = viewerState.gc_gap_color || "#FFFF0033";//"#FFFF0033"
+			ctx.fill();
 
 			if (viewerState.gc_content_clip_indel) {
 				ctx.restore();//end clip => clear clip
