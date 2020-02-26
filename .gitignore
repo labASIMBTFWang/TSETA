@@ -1,3 +1,14 @@
+# TSETA
+*.fa
+*.fasta
+*.txt
+output
+tmp
+*.exe
+
+# vscode
+.vscode
+
 # Logs
 logs
 *.log

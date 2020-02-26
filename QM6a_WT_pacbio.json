@@ -1,6 +1,12 @@
 {
 	"name": "QM6a / CBS1-1 WT pacbio",
 	"ref": "QM6a",
+	"parental_list": [
+		"QM6a", "CBS1-1"
+	],
+	"progeny_list": [
+		"WTH109", "WTH111", "WTH115", "WTH119"
+	],
 	"parental": {
 		"QM6a": "QM6a.genome.fa",
 		"CBS1-1": "CBS1-1.genome.fa"
@@ -21,12 +27,11 @@
 		"thread": 20
 	},
 	"rDNA": {
-		"range": [2323505, 2387639],
 		"nChr": 6,
 		"sequence": "rDNA.fa"
 	},
-	"GC content": "QM6a_CBS1-1.circos.gc_2Q.txt",
-	"AT-island": "QM6a_AT-island.txt",
+	"GC content": "QM6a_CBS1-1_GC_content.txt",
+	"AT-island": "QM6a_AT_island.txt",
 	"crossover": {
 		"closeCOsMinDistance": 5000
 	},
@@ -47,11 +52,5 @@
 		"5": [[1, 1000], [4148500, 4159965]],
 		"6": [[1, 87500], [3976500, 4000387]],
 		"7": [[1, 23000], [3816500, 3823438]]
-	},
-	"no-co-region": {
-		"num-chr": ["start", "end"]
-	},
-	"ignore-indel-region": {
-		"num-chr": ["start", "end"]
 	}
 }
