@@ -41,6 +41,9 @@ async function main() {
 	for (let nChr = 1; nChr <= genome_info_list[0].chr_list.length; ++nChr) {
 		console.log("start ch", nChr);
 		try {
+			fs.writeFileSync(`tmp/multi_coord_ch${nChr}.txt`, "");//clear
+			fs.writeFileSync(`tmp/frag_length_ch${nChr}.txt`, "");//clear
+			
 			const count = await multi_coord(nChr);
 
 			console.log(count);
@@ -145,17 +148,15 @@ async function multi_coord(nChr) {
 			_global_search_align = result_coords_list;
 			
 			/**
-			 * @param {BlastnCoord[]} ref_coords - r2[]
 			 * @param {BlastnCoord[][]} coords_list - [r1[], r2[], s1[], s2[], s3[], s4[]]
 			 */
-			function check_overlap_ref(ref_coords, coords_list) {
-				let _ref_coords = ref_coords.filter(r2c => r2c.align >= argv_minimum_align_length);
+			function check_overlap_ref(coords_list) {
 				let _coords_list = coords_list.map(coords => coords.filter(r2c => r2c.align >= argv_minimum_align_length));
 				
 				if (_coords_list[1] && _coords_list[1].length) {
 					let all_match_group = _coords_list[1].map(r2_coord => {
 						let _ret = [
-							_ref_coords.sort((a, b) => (Math.abs(a.qstart - r2_coord.qstart) + Math.abs(a.qend - r2_coord.qend)) - (Math.abs(b.qstart - r2_coord.qstart) + Math.abs(b.qend - r2_coord.qend)))[0],
+							_coords_list[0].sort((a, b) => (Math.abs(a.qstart - r2_coord.qstart) + Math.abs(a.qend - r2_coord.qend)) - (Math.abs(b.qstart - r2_coord.qstart) + Math.abs(b.qend - r2_coord.qend)))[0],
 							r2_coord,
 							..._coords_list.slice(2).map(_coords => _coords.sort((a, b) => (Math.abs(a.qstart - r2_coord.qstart) + Math.abs(a.qend - r2_coord.qend)) - (Math.abs(b.qstart - r2_coord.qstart) + Math.abs(b.qend - r2_coord.qend)))[0]),
 						];
@@ -174,10 +175,10 @@ async function multi_coord(nChr) {
 				};
 			}
 
-			let match_results = check_overlap_ref(result_coords_list[1], result_coords_list);
+			let match_results = check_overlap_ref(result_coords_list);
 			_local_overlap_align = match_results.best_match;
 
-			if (match_results.best_match.every((match, i) => match)) {
+			if (match_results.best_match.length && match_results.best_match.every((match, i) => match)) {
 				if (match_results.best_match.some((match, i) => (match.sstart - pos_start_list[i]) >= max_delta)) {
 
 					console.log(fragId, "out of range:", "max_delta", max_delta);
@@ -298,7 +299,7 @@ async function multi_coord(nChr) {
 				}
 				
 				match_results.best_match[0].send = pos_end_list[0];
-				const output_coord_list = match_results.best_match.map((match, i) => [pos_start_list[i] - 1, match.send]);
+				const output_coord_list = match_results.best_match.map((match, i) => [pos_start_list[i] - 1, match.send]);// charAt
 				const extract_seq_list = output_coord_list.map(([start, end], i) => chr_seq_list[i].slice(start, end));
 				const extract_length_list = extract_seq_list.map(seq => seq.length);
 
@@ -329,8 +330,8 @@ async function multi_coord(nChr) {
 				}, null, "\t"));
 				
 				const fa_seq_name_list = chr_name_list.map((chrName, i) => {
-					const [start, end] = output_coord_list[i];
-					return `${chrName} ${start}-${end} ${extract_seq_list[i].length}`;
+					const [start, end] = output_coord_list[i];// charAt
+					return `${chrName} ${start + 1}-${end} ${extract_seq_list[i].length}`;
 				});
 				
 				{
@@ -393,7 +394,6 @@ async function multi_coord(nChr) {
 					find_next_start_list,
 					max_delta,
 				});
-				console.error("out meta.json");
 
 				console.table(match_results.best_match.map(match => match != null));
 			}
@@ -412,14 +412,18 @@ async function multi_coord(nChr) {
 	{
 		pos_start_list[0] = pos_end_list[0] + 1;
 		let output_coord_list = pos_start_list.map((start, i) => {
-			return [start - 1, chr_info_list[i].length];
+			return [start - 1, chr_info_list[i].length];// charAt
 		});
 		const extract_seq_list = output_coord_list.map(([start, end], i) => chr_seq_list[i].slice(start, end));
-		const extract_length_list = extract_seq_list.map(seq => seq.length);
 		const fa_seq_name_list = chr_name_list.map((chrName, i) => {
-			const [start, end] = output_coord_list[i];
-			return `${chrName} ${start}-${end} ${extract_seq_list[i].length}`;
+			const [start, end] = output_coord_list[i];// charAt
+			return `${chrName} ${start + 1}-${end} ${extract_seq_list[i].length}`;
 		});
+		const extract_length_list = extract_seq_list.map(seq => seq.length);
+		const extract_seq_map = fa_seq_name_list.reduce((fasta, seqName, i) => {
+			fasta[seqName] = extract_seq_list[i];
+			return fasta;
+		}, {});
 
 		{
 			const coord_text_1 = fragId + "\tstart\t" + [search_start, ...extract_seq_list.map((tuple) => tuple[0])].join("\t|\t");
@@ -446,10 +450,7 @@ async function multi_coord(nChr) {
 
 			console.log(output_fasta_file_name);
 			
-			saveFasta(output_fasta_file_name, fa_seq_name_list.reduce((fasta, seqName, i) => {
-				fasta[seqName] = extract_seq_list[i];
-				return fasta;
-			}, {}));
+			saveFasta(output_fasta_file_name, extract_seq_map);
 		}
 		else {//check translocation
 			let like_r1_seq = fa_seq_name_list.filter((seq, idx) => {
@@ -466,11 +467,11 @@ async function multi_coord(nChr) {
 			console.log(output_r2_fasta_file_name);
 			
 			saveFasta(output_r1_fasta_file_name, like_r1_seq.reduce((fasta, seqName, i) => {
-				fasta[seqName] = extract_seq_list[i];
+				fasta[seqName] = extract_seq_map[seqName];
 				return fasta;
 			}, {}));
 			saveFasta(output_r2_fasta_file_name, like_r2_seq.reduce((fasta, seqName, i) => {
-				fasta[seqName] = extract_seq_list[i];
+				fasta[seqName] = extract_seq_map[seqName];
 				return fasta;
 			}, {}));
 		}
@@ -478,29 +479,4 @@ async function multi_coord(nChr) {
 	console.log("all fin");
 
 	return fragId;
-}
-
-/**
- * @param {BlastnCoord[]} r1_list
- * @param {BlastnCoord[]} r2_list
- * @param {BlastnCoord[]} a_list
- * @param {BlastnCoord[]} b_list
- * @param {BlastnCoord[]} c_list
- * @param {BlastnCoord[]} d_list
- */
-function seqFrom(r1_list, r2_list, a_list, b_list, c_list, d_list) {
-	let s1 = r1_list.sort((a, b) => b.score - a.score)[0];
-	let s2 = r2_list.sort((a, b) => b.score - a.score)[0];
-	let sa = a_list.sort((a, b) => b.score - a.score)[0];
-	let sb = b_list.sort((a, b) => b.score - a.score)[0];
-	let sc = c_list.sort((a, b) => b.score - a.score)[0];
-	let sd = d_list.sort((a, b) => b.score - a.score)[0];
-	return [
-		true,
-		s2.qlen == s2.slen && !s2.gap && !s2.mismatch,
-		sa.identity == 100 || sa.identity != s2.identity,
-		sb.identity == 100 || sb.identity != s2.identity,
-		sc.identity == 100 || sc.identity != s2.identity,
-		sd.identity == 100 || sd.identity != s2.identity
-	];
 }

@@ -17,36 +17,9 @@ const argv_flags = String(argv["-flags"] || "") == "raw" ? "raw" : "";
 const argv_dataset_path = String(argv["-dataset"] || "");
 const dataset = Dataset.loadFromFile(argv_dataset_path);
 
-const r1_name = dataset.ref;
-const r2_name = dataset.parental_list[1];
-const s1_name = dataset.progeny_list[0];
-const s2_name = dataset.progeny_list[1];
-const s3_name = dataset.progeny_list[2];
-const s4_name = dataset.progeny_list[3];
 
-const r1_chr_list = loadChrLength(`output/${r1_name}.length.txt`).list;
-const r2_chr_list = loadChrLength(`output/${r2_name}.length.txt`).list;
-const s1_chr_list = loadChrLength(`output/${s1_name}.length.txt`).list;
-const s2_chr_list = loadChrLength(`output/${s2_name}.length.txt`).list;
-const s3_chr_list = loadChrLength(`output/${s3_name}.length.txt`).list;
-const s4_chr_list = loadChrLength(`output/${s4_name}.length.txt`).list;
+const genome_info_list = dataset.loadGenomeInfoList();
 
-const genome_name_list = [
-	r1_name,
-	r2_name,
-	s1_name,
-	s2_name,
-	s3_name,
-	s4_name,
-];
-const genome_length_list = [
-	r1_chr_list,
-	r2_chr_list,
-	s1_chr_list,
-	s2_chr_list,
-	s3_chr_list,
-	s4_chr_list,
-];
 
 main();
 
@@ -62,8 +35,8 @@ function validation_frag(flags = { raw: true }) {
 	
 	/** @type {{ [chrName: string]: string }[]} */
 	let srcRaw_genome_list = [];
-	genome_name_list.forEach((genome_name, i) => {
-		let genome_seq = readFasta(dataset.genomeFileMap[genome_name]);
+	genome_info_list.forEach((genomeInfo, i) => {
+		let genome_seq = readFasta(dataset.genomeFileMap[genomeInfo.name]);
 		srcRaw_genome_list[i] = genome_seq;
 	});
 
@@ -76,7 +49,7 @@ function validation_frag(flags = { raw: true }) {
 		const src_raw_seq = {};
 		srcRaw_genome_list.forEach((src_raw_genome, i) => {
 			const idxChr = nChr - 1;
-			const chr_name = genome_length_list[i][idxChr].chr;
+			const chr_name = genome_info_list[i].chr_list[idxChr].chr;
 			src_raw_seq[chr_name] = src_raw_genome[chr_name];
 			chr_name_list.push(chr_name);
 			output_src_fa[chr_name] = "";//init
