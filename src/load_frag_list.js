@@ -50,7 +50,6 @@ class MyCoord {
 	}
 }
 
-
 /**
  * @param {LoadedDataset} dataset
  * @param {boolean} [merge_centromere]
@@ -60,7 +59,10 @@ function loadFragIdList(dataset, merge_centromere = true) {
 	/** @type {{[nChr:number]:MyCoord[]}} */
 	const all_chr_frag_list = {};
 
-	for (let nChr = 1; nChr <= dataset.chrNames.length; ++nChr) {
+	const genome_info_list = dataset.loadGenomeInfoList();
+	const chr_info_list = genome_info_list.map(gInfo => gInfo.chr_list);
+
+	for (let nChr = 1; nChr <= chr_info_list.length; ++nChr) {
 		try {
 			const coords = load_my_coord(`tmp/multi_coord_ch${nChr}.txt`);
 

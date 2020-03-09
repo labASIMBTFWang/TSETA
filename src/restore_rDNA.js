@@ -3,7 +3,7 @@
 const fs = require("fs");
 const Path = require("path");
 
-const { argv_parse, loadChrLength, array_groupBy } = require("./util.js");
+const { argv_parse, array_groupBy } = require("./util.js");
 const { BlastnCoord, execAsync, exec_blastn, exec_blastn_Ex, parseBlastnResults, blastn_coord, isCollide, groupByOverlap } = require("./blastn_util.js");
 const { readFasta, saveFasta } = require("./fasta_util.js");
 const { Dataset } = require("./dataset.js");
@@ -14,31 +14,17 @@ const DEBUG = !!argv["--debug"];
 const argv_dataset_path = String(argv["-dataset"] || "");
 const dataset = Dataset.loadFromFile(argv_dataset_path);
 
-const ref1_name = dataset.ref;
-const ref2_name = dataset.parental_list[1];
-const spore_1_name = dataset.progeny_list[0];
-const spore_2_name = dataset.progeny_list[1];
-const spore_3_name = dataset.progeny_list[2];
-const spore_4_name = dataset.progeny_list[3];
 
-let genome_name_list = [...dataset.parental_list, ...dataset.progeny_list];
-
-const ref1_chr_list = loadChrLength(`output/${ref1_name}.length.txt`).list;
-const ref2_chr_list = loadChrLength(`output/${ref2_name}.length.txt`).list;
-const s1_chr_list = loadChrLength(`output/${spore_1_name}.length.txt`).list;
-const s2_chr_list = loadChrLength(`output/${spore_2_name}.length.txt`).list;
-const s3_chr_list = loadChrLength(`output/${spore_3_name}.length.txt`).list;
-const s4_chr_list = loadChrLength(`output/${spore_4_name}.length.txt`).list;
-
+const genome_info_list = dataset.loadGenomeInfoList();
 
 if (process.argv[1] == __filename) {
 	main();
 }
 
 function main() {
-	const rDNA_nChr = Number(dataset.rDNA.nChr);
+	const rDNA_nChr = Number(dataset.rDNA.chr);
 
-	for (let i = 1; i <= ref1_chr_list.length; ++i) {
+	for (let i = 1; i <= genome_info_list[0].chr_list.length; ++i) {
 		if (i != rDNA_nChr) {
 			let input_path = `tmp/mafft_ch${i}.fa`;
 			let output_path = `output/mafft_ch${i}.fa`;
@@ -50,7 +36,7 @@ function main() {
 }
 
 async function restore_rdna() {
-	const nChr = Number(dataset.rDNA.nChr);
+	const nChr = Number(dataset.rDNA.chr);
 	const chrIdx = nChr - 1;
 	let rDNA_filePath = dataset.rDNA.sequence;
 
@@ -64,20 +50,14 @@ async function restore_rdna() {
 	/** @type {{ [seqName: string]: rDNA_Data }} */
 	let rdna_data = {};
 
-	let chr_list = [
-		ref1_chr_list[chrIdx].chr,
-		ref2_chr_list[chrIdx].chr,
-		s1_chr_list[chrIdx].chr,
-		s2_chr_list[chrIdx].chr,
-		s3_chr_list[chrIdx].chr,
-		s4_chr_list[chrIdx].chr,
-	];
+	let chr_list = genome_info_list.map(genome_info => genome_info.chr_list[chrIdx].chr);
+
 	let promise = chr_list.map(async function (seqName, seqIndex) {
 		const mafft_seq = mafft_fa[seqName];
 		mafft_fa_posmap[seqName] = _chrPos_to_multialign_posMap(mafft_seq);
 		chr_posmap[seqName] = _multialign_to_chrPos_posMap(mafft_seq);
 		
-		rdna_data[seqName] = await find_rDNA_use_blastn(rDNA_filePath, genome_name_list[seqIndex], nChr);
+		rdna_data[seqName] = await find_rDNA_use_blastn(rDNA_filePath, dataset.genomeNameList[seqIndex], nChr);
 	});
 	await Promise.all(promise);
 	

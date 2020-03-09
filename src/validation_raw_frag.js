@@ -61,10 +61,10 @@ function validation_frag(flags = { raw: true }) {
 	const input_path_dir = flags.raw ? "tmp/seq_frag" : "tmp/mafft_seq_frag";
 	
 	/** @type {{ [chrName: string]: string }[]} */
-	let src_raw_genome_list = [];
+	let srcRaw_genome_list = [];
 	genome_name_list.forEach((genome_name, i) => {
 		let genome_seq = readFasta(dataset.genomeFileMap[genome_name]);
-		src_raw_genome_list[i] = genome_seq;
+		srcRaw_genome_list[i] = genome_seq;
 	});
 
 	for (let nChr = 1; nChr <= dataset.chrNames.length; ++nChr) {
@@ -74,7 +74,7 @@ function validation_frag(flags = { raw: true }) {
 		const chr_name_list = [];
 		/** @type {{ [chrName: string]: string }} */
 		const src_raw_seq = {};
-		src_raw_genome_list.forEach((src_raw_genome, i) => {
+		srcRaw_genome_list.forEach((src_raw_genome, i) => {
 			const idxChr = nChr - 1;
 			const chr_name = genome_length_list[i][idxChr].chr;
 			src_raw_seq[chr_name] = src_raw_genome[chr_name];

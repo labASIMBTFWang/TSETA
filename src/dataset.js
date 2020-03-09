@@ -7,6 +7,55 @@ const { tsv_parse, _table_to_object_list, table_to_object_list } = require("./ts
 const { parse_GC_Content_table, GC_Content_Data } = require("./GC_content_util.js");
 
 
+class GenomeInfo {
+	/**
+	 * @param {string} name
+	 */
+	constructor(name) {
+		this.name = name;
+		
+		this.chr_list = GenomeInfo.loadChrLength(`output/${name}.length.txt`).list;
+		this.chr_map = GenomeInfo.loadChrLength(`output/${name}.length.txt`).map;
+
+		/** @type {{ [sChr:string]: string }} */
+		this.fasta = {};
+	}
+	
+	/**
+	 * @returns {{ list: { index: number, chr: string, length: number }[], map: {[chrName:string]:{ index: number, chr: string, length: number }} }}
+	 */
+	static loadChrLength(file_path) {
+		let text_tab = fs.readFileSync(file_path).toString();
+		let tab = tsv_parse(text_tab);
+		let rows = table_to_object_list(tab, ["index", "chr", "length"], { start_row: 1 });
+		
+		/** @type {{ index: number, chr: string, length: number }[]} */
+		let chrList = rows.map(row => {
+			return {
+				index: Number(row.index),
+				chr: String(row.chr),
+				length: Number(row.length),
+			};
+		});
+		chrList = chrList.sort((a, b) => a.index - b.index);
+
+		/** @type {{[chrName:string]:{ index: number, chr: string, length: number }}} */
+		let chrMap = {};
+		rows.forEach(row => {
+			chrMap[row.chr] = {
+				index: Number(row.index),
+				chr: String(row.chr),
+				length: Number(row.length),
+			};
+		});
+		
+		return {
+			map: chrMap,
+			list: chrList,
+		};
+	}
+}
+
 class RibosomalDNA_Data {
 	constructor() {
 		this.nChr = 6;
@@ -31,6 +80,8 @@ class LoadingFlags {
 
 class Dataset {
 	constructor() {
+		//user input data
+
 		//Chr#    start   end     GC%
 		this.gc = {};
 
@@ -48,7 +99,7 @@ class Dataset {
 		/** @type {{[refName:string]:string}} - progeny fasta file apth */
 		this.progeny = {};
 		
-		/** @type {string[]} */
+		/** @type {string[]} ref chr / parental[0] chr */
 		this.chrNames = [];
 
 		this.mafft = {};
@@ -84,6 +135,44 @@ class Dataset {
 
 		/** @type {RibosomalDNA_Position_info} */
 		this.rDNA_info = new RibosomalDNA_Position_info();
+
+		// internal property
+
+		/** @type {string[]} */
+		this.genomeNameList = [];
+
+		/** @type {{[name:string]:string}} */
+		this.genomeFileMap = {};
+	}
+
+	/**
+	 * @type {"tetrad"|"SNP"}
+	 */
+	get mode() {
+		if (this.parental_list.length == 2) {
+			if (this.progeny_list.length % 4 == 0) {
+				//Tetrad analysis
+				return "tetrad";
+			}
+		}
+		return "SNP";
+		// if (this.parental_list.length == 2) {
+		// 	if (this.progeny_list.length == 4) {
+		// 		return "SNP CO InDel";
+		// 	}
+		// 	else if (this.progeny_list.length > 0) {
+		// 		return "2 parental +progeny SNP";
+		// 	}
+		// 	else {
+		// 		return "2 parental SNP";
+		// 	}
+		// }
+		// else if (this.parental_list.length == 1 && this.progeny_list.length > 0) {
+		// 	return "1 parental +progeny SNP";
+		// }
+		// else {
+		// 	throw new Error("");
+		// }
 	}
 	
 	/**
@@ -146,6 +235,10 @@ class Dataset {
 		return ref1_pos >= start && ref1_pos <= end;
 	}
 
+	loadGenomeInfoList() {
+		return this.genomeNameList.map(name => new GenomeInfo(name));
+	}
+
 	/**
 	 * @param {string} dataset_path
 	 * @param {LoadingFlags} flags
@@ -167,13 +260,21 @@ class Dataset {
 		// @ts-ignore
 		let loaded = dataset;
 		
-		if (!flags || flags.gc_content) {
+		if (flags && flags.gc_content) {
 			loaded["GC content"] = Dataset.__load_GC_content(dataset["GC content"]);
 		}
+		else {
+			console.warn(process.argv[1], "no loading:", "GC content");
+		}
 
-		if (!flags || flags.ribosomal_dna) {
+		if (flags && flags.ribosomal_dna) {
 			loaded.rDNA_info = Dataset.__load_rDNA_info_fromDataset(dataset_path);
 		}
+		else {
+			console.warn(process.argv[1], "no loading:", "rDNA_info");
+		}
+
+		loaded.genomeNameList = [].concat(loaded.parental_list, loaded.progeny_list);
 		
 		loaded.genomeFileMap = {};
 
@@ -249,12 +350,15 @@ class LoadedDataset extends Dataset {
 		
 		/** @type {{[parentalName:string]:{[nChr:number]:GC_Content_Data[]}}} */
 		this["GC content"] = {};
-
-		/** @type {{[name:string]:string}} */
-		this.genomeFileMap = {};
 	}
 }
 
 
 module.exports.Dataset = Dataset;
 module.exports.LoadedDataset = LoadedDataset;
+
+module.exports.GenomeInfo = GenomeInfo;
+
+module.exports.RibosomalDNA_Data = RibosomalDNA_Data;
+module.exports.RibosomalDNA_Position_info = RibosomalDNA_Position_info;
+

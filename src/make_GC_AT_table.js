@@ -3,7 +3,7 @@
 
 const fs = require("fs");
 
-const { argv_parse, loadChrLength, array_groupBy } = require("./util.js");
+const { argv_parse, array_groupBy } = require("./util.js");
 const { Dataset } = require("./dataset.js");
 const  { GC_Content_Data } = require("./GC_content_util.js");
 const  { parseFasta } = require("./fasta_util.js");
@@ -28,12 +28,14 @@ console.log({
 {
 	const argv_dataset_path = String(argv["-dataset"] || "");
 	const dataset = Dataset.loadFromFile(argv_dataset_path);
+	
+	const genome_info_list = dataset.loadGenomeInfoList();
 
 	const ref1_name = dataset.ref;
 	const ref2_name = dataset.parental_list[1];
 
-	const ref1_chr_list = loadChrLength(`output/${ref1_name}.length.txt`);
-	const ref2_chr_list = loadChrLength(`output/${ref2_name}.length.txt`);
+	const ref1_chr_list = genome_info_list[0];
+	const ref2_chr_list = genome_info_list[1];
 
 	let { all_gc_table: ref1_all_gc_table, all_island_table: ref1_all_island_table } = make_table(dataset.parental[ref1_name], ref1_name);
 	let { all_gc_table: ref2_all_gc_table, all_island_table: ref2_all_island_table } = make_table(dataset.parental[ref2_name], ref2_name);

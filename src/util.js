@@ -1,3 +1,4 @@
+// @ts-check
 
 const fs = require("fs");
 const child_process = require("child_process");
@@ -170,79 +171,9 @@ function _execAsync(cmd, stdout_fname = null, stderr_fname = null) {
 	});
 }
 
-/**
- * @returns {{ list: { index: number, chr: string, length: number }[], map: {[chrName:string]:{ index: number, chr: string, length: number }} }}
- */
-function loadChrLength(file_path) {
-	let text_tab = fs.readFileSync(file_path).toString();
-	let tab = tsv_parse(text_tab);
-	let rows = table_to_object_list(tab, ["index", "chr", "length"], { start_row: 1 });
-	
-	/** @type {{ index: number, chr: string, length: number }[]} */
-	let chrList = rows.map(row => {
-		return {
-			index: Number(row.index),
-			chr: String(row.chr),
-			length: Number(row.length),
-		};
-	});
-	chrList = chrList.sort((a, b) => a.index - b.index);
 
-	/** @type {{[chrName:string]:{ index: number, chr: string, length: number }}} */
-	let chrMap = {};
-	rows.forEach(row => {
-		chrMap[row.chr] = {
-			index: Number(row.index),
-			chr: String(row.chr),
-			length: Number(row.length),
-		};
-	});
-	
-	return {
-		map: chrMap,
-		list: chrList,
-		/**
-		 * @param {number} num
-		 */
-		getByNum: function (num) {
-			return this.list[n - 1];
-		},
-	};
-}
-
-// /**
-//  * @returns {{[chrName:string]:{ index: number, chr: string, length: number }}}
-//  */
-// function loadLengthMapFile(file_path) {
-// 	let text_tab = fs.readFileSync(file_path).toString();
-// 	let tab = tsv_parse(text_tab);
-// 	let rows = table_to_object_list(tab, ["index", "chr", "length"], { start_row: 1 });
-//
-// 	let chrMap = {};
-//
-// 	rows.forEach(row => {
-// 		chrMap[row.chr] = {
-// 			index: Number(row.index),
-// 			chr: String(row.chr),
-// 			length: Number(row.length),
-// 		};
-// 	});
-//
-// 	return chrMap;
-// }
-
-function loadDataSet(dataset_path) {
-	try {
-		return JSON.parse(fs.readFileSync(dataset_path).toString());
-	}
-	catch (ex) {
-		throw ex;
-	}
-}
 
 module.exports.array_groupBy = array_groupBy;
 module.exports.execAsync = execAsync;
 module.exports.argv_parse = argv_parse;
 
-module.exports.loadDataSet = loadDataSet;
-module.exports.loadChrLength = loadChrLength;
