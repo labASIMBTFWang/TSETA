@@ -2,7 +2,7 @@
 
 const fs = require("fs");
 
-const { LoadedDataset } = require("./dataset.js");
+const { Dataset } = require("./dataset.js");
 
 
 class MyCoord {
@@ -51,20 +51,22 @@ class MyCoord {
 }
 
 /**
- * @param {LoadedDataset} dataset
- * @param {boolean} [merge_centromere]
+ * @param {Dataset} dataset
  * @returns {{[nChr:number]:MyCoord[]}}
  */
-function loadFragIdList(dataset, merge_centromere = true) {
+function loadFragIdList(dataset) {
+	const tetrad_analysis = dataset.mode == "tetrad";
+	const merge_centromere = !!tetrad_analysis;
+
 	/** @type {{[nChr:number]:MyCoord[]}} */
 	const all_chr_frag_list = {};
 
 	const genome_info_list = dataset.loadGenomeInfoList();
-	const chr_info_list = genome_info_list.map(gInfo => gInfo.chr_list);
+	const chr_info_list = genome_info_list[0].chr_list;
 
 	for (let nChr = 1; nChr <= chr_info_list.length; ++nChr) {
 		try {
-			const coords = load_my_coord(`tmp/multi_coord_ch${nChr}.txt`);
+			const coords = load_my_coord(`${dataset.tmp_path}/multi_coord_ch${nChr}.txt`);
 
 			if (merge_centromere) {
 				const cen_range = (function get_centromere() {

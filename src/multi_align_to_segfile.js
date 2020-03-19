@@ -8,7 +8,7 @@ const { Crossover } = require("./crossover_util.js");
 const { readFasta } = require("./fasta_util.js");
 const { SegRow } = require("./SegFile.js");
 
-const { loadCmpData } = require("./analyser.js");
+const { initAnalyser, loadCmpData } = require("./analyser.js");
 
 const argv = argv_parse(process.argv);
 
@@ -29,8 +29,10 @@ if (!argv_dataset_path || !argv_input || !argv_output_chr || !argv_output_prefix
 	throw new Error("agv");
 }
 
-const dataset = Dataset.loadFromFile(argv_dataset_path);
 const input_fasta = readFasta(argv_input);
+const dataset = Dataset.loadFromFile(argv_dataset_path);
+dataset.load_GC_content();
+dataset.load_rDNA_info();
 
 
 main();
@@ -46,13 +48,15 @@ function main() {
 	let seq_id_list = Object.keys(input_fasta);
 	seq_id_list.forEach((id, i) => seq_list[i] = input_fasta[id]);
 
-	let analyser_options = {
+	let analysis_options = {
 		get nChr() { return argv_output_chr },
 		get rDNA_info() { return dataset.rDNA_info; },
 		get co_list() { return null; },//not in this stage
 		get fill_prev_color() { return true; },
+		get mode() { return dataset.mode; },
 	};
-	let data = loadCmpData(seq_list, analyser_options);
+	initAnalyser(analysis_options);
+	let data = loadCmpData(seq_list, analysis_options);
 
 	function clear_bits(input) {
 		let bits = input & data.ColorID.mask;
@@ -139,8 +143,8 @@ function main() {
 		return row;
 	}).filter(a => a);
 
-	save_seg(`output/${argv_output_prefix}.txt`, segfile);
-	//save_seg(`output/rip_${argv_output_prefix}.txt`, rip_list);
+	save_seg(`${dataset.output_path}/${argv_output_prefix}.txt`, segfile);
+	//save_seg(`${dataset.output_path}/rip_${argv_output_prefix}.txt`, rip_list);
 }
 
 function save_seg(output_name, segfile) {

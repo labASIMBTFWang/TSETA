@@ -3,7 +3,7 @@
 const fs = require("fs");
 const Path = require("path");
 
-const { argv_parse, loadChrLength, array_groupBy } = require("./util.js");
+const { argv_parse, array_groupBy } = require("./util.js");
 const { tsv_parse, table_to_object_list } = require("./tsv_parser.js");
 const { Dataset } = require("./dataset.js");
 const { BlastnCoord, execAsync, exec_blastn, parseBlastnResults, blastn_coord, isCollide, groupByOverlap } = require("./blastn_util.js");
@@ -12,26 +12,22 @@ const { loadFragIdList } = require("./load_frag_list.js");
 
 const argv = argv_parse(process.argv);
 
-const argv_flags = String(argv["-flags"] || "") == "raw" ? "raw" : "";
-
 const argv_dataset_path = String(argv["-dataset"] || "");
 const dataset = Dataset.loadFromFile(argv_dataset_path);
 
-
 const genome_info_list = dataset.loadGenomeInfoList();
-
 
 main();
 
 function main() {
-	validation_frag({ raw: argv_flags == "raw" });
+	validation_frag({ raw: true });//raw frag
+	validation_frag({ raw: false });//mafft frag
 }
 
 function validation_frag(flags = { raw: true }) {
-	const merge_centromere = !flags.raw;
-	const all_chr_frag_list = loadFragIdList(dataset, merge_centromere);
+	const all_chr_frag_list = loadFragIdList(dataset);
 
-	const input_path_dir = flags.raw ? "tmp/seq_frag" : "tmp/mafft_seq_frag";
+	const input_path_dir = flags.raw ? `${dataset.tmp_path}/seq_frag` : `${dataset.tmp_path}/mafft_seq_frag`;
 	
 	/** @type {{ [chrName: string]: string }[]} */
 	let srcRaw_genome_list = [];
@@ -40,7 +36,7 @@ function validation_frag(flags = { raw: true }) {
 		srcRaw_genome_list[i] = genome_seq;
 	});
 
-	for (let nChr = 1; nChr <= dataset.chrNames.length; ++nChr) {
+	for (let nChr = 1; nChr <= genome_info_list[0].chr_list.length; ++nChr) {
 		/** @type {{ [chrName: string]: string }} */
 		const output_src_fa = {};
 
@@ -143,7 +139,7 @@ function validation_frag(flags = { raw: true }) {
 					}
 				});
 				
-				fs.writeFileSync(`tmp/mafft_ch${nChr}.json`, JSON.stringify(final_list, null, "\t"));
+				fs.writeFileSync(`${dataset.tmp_path}/mafft_ch${nChr}.json`, JSON.stringify(final_list, null, "\t"));
 
 				console.log("ch", nChr, "ok");
 			}

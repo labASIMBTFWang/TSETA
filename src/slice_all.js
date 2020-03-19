@@ -22,8 +22,8 @@ const argv_minimum_align_length = 1000;
 
 const genome_info_list = dataset.loadGenomeInfoList();
 
-if (!fs.existsSync(`tmp/ma_util_blastn`)) {
-	fs.mkdirSync(`tmp/ma_util_blastn`);
+if (!fs.existsSync(`${dataset.tmp_path}/ma_util_blastn`)) {
+	fs.mkdirSync(`${dataset.tmp_path}/ma_util_blastn`);
 }
 
 if (process.argv[1] == __filename) {
@@ -31,25 +31,25 @@ if (process.argv[1] == __filename) {
 }
 
 async function main() {
-	if (!fs.existsSync(`tmp/seq_frag`)) {
-		fs.mkdirSync(`tmp/seq_frag`);
+	if (!fs.existsSync(`${dataset.tmp_path}/seq_frag`)) {
+		fs.mkdirSync(`${dataset.tmp_path}/seq_frag`);
 	}
-	if (!fs.existsSync(`tmp/meta`)) {
-		fs.mkdirSync(`tmp/meta`);
+	if (!fs.existsSync(`${dataset.tmp_path}/meta`)) {
+		fs.mkdirSync(`${dataset.tmp_path}/meta`);
 	}
 
 	for (let nChr = 1; nChr <= genome_info_list[0].chr_list.length; ++nChr) {
 		console.log("start ch", nChr);
 		try {
-			fs.writeFileSync(`tmp/multi_coord_ch${nChr}.txt`, "");//clear
-			fs.writeFileSync(`tmp/frag_length_ch${nChr}.txt`, "");//clear
+			fs.writeFileSync(`${dataset.tmp_path}/multi_coord_ch${nChr}.txt`, "");//clear
+			fs.writeFileSync(`${dataset.tmp_path}/frag_length_ch${nChr}.txt`, "");//clear
 			
 			const count = await multi_coord(nChr);
 
-			console.log(count);
+			console.log("number of fragment", count);
 		}
 		catch (ex) {
-			fs.writeFileSync(`tmp/ma_util.error.txt`, "ch" + nChr + "\n" + ex.stack + "\n", { flag: "a" });
+			fs.writeFileSync(`${dataset.tmp_path}/ma_util.error.txt`, "ch" + nChr + "\n" + ex.stack + "\n", { flag: "a" });
 			console.error(ex);
 		}
 		console.log("end ch", nChr);
@@ -64,7 +64,7 @@ async function multi_coord(nChr) {
 	
 	const chr_info_list = genome_info_list.map(genome_info => genome_info.chr_list[chr_idx]);
 	const chr_name_list = chr_info_list.map(chr_info => chr_info.chr);
-	const chr_fastaPath_list = dataset.genomeNameList.map((gName, i) => `tmp/fasta/${gName}_${chr_name_list[i]}.fa`);
+	const chr_fastaPath_list = dataset.genomeNameList.map((gName, i) => `${dataset.tmp_path}/fasta/${gName}_${chr_name_list[i]}.fa`);
 
 	const chr_seq_list = chr_fastaPath_list.map((filepath, i) => readFasta(filepath)[chr_name_list[i]]);
 
@@ -98,21 +98,6 @@ async function multi_coord(nChr) {
 			}
 			
 			/**
-			 * @param {BlastnCoord} r2_coord
-			 * @param {BlastnCoord} r1_coord
-			 */
-			function check_q_s_start_end(r2_coord, r1_coord) {
-				return (r2_coord.qstart <= r1_coord.qend && r2_coord.qend >= r1_coord.qstart);
-			}
-			
-			/**
-			 * @param {BlastnCoord} r1_coord
-			 */
-			function check_q_no_repeats(r1_coord) {
-				return (r1_coord.qstart == r1_coord.sstart && r1_coord.qend == r1_coord.send);
-			}
-
-			/**
 			 * @param {BlastnCoord} row
 			 * @param {any[]} params
 			 */
@@ -128,9 +113,10 @@ async function multi_coord(nChr) {
 			for (let i = 1; i < pos_search_start_list.length; ++i) {
 				pos_search_start_list[i] = Math.max(pos_start_list[i], find_next_start_list[i]);
 			}
-
 			//skip ref, pos_search_start[0] => 1
-			if (pos_search_start_list.some((pos_search_start, i) => pos_search_start > chr_info_list[i].length)) {
+			if (pos_search_start_list.some((pos_search_start, i) => pos_search_start >= chr_info_list[i].length)) {
+				//translocation
+				++fragId;
 				break;
 			}
 
@@ -308,12 +294,12 @@ async function multi_coord(nChr) {
 					const coord_text_2 = fragId + "\t  end\t" + [search_end,   ...match_results.best_match.map((match, i) => match.send)].join("\t|\t");
 					console.log(coord_text_1);
 					console.log(coord_text_2);
-					fs.writeFileSync(`tmp/multi_coord_ch${nChr}.txt`, coord_text_1 + "\n" + coord_text_2 + "\n", { flag: "a" });
+					fs.writeFileSync(`${dataset.tmp_path}/multi_coord_ch${nChr}.txt`, coord_text_1 + "\n" + coord_text_2 + "\n", { flag: "a" });
 				}
 
 				const min_len = Math.min(...extract_length_list);
 				const max_len = Math.max(...extract_length_list);
-				fs.writeFileSync(`tmp/frag_length_ch${nChr}.txt`, [
+				fs.writeFileSync(`${dataset.tmp_path}/frag_length_ch${nChr}.txt`, [
 					fragId,
 					...extract_length_list,
 					...extract_length_list.map(len => (len / max_len).toFixed(2)),
@@ -321,7 +307,7 @@ async function multi_coord(nChr) {
 					(min_len / max_len).toFixed(2),
 				].join("\t") + "\n", { flag: "a" });
 
-				fs.writeFileSync(`tmp/meta/meta_ch${nChr}_${fragId}.json`, JSON.stringify({
+				fs.writeFileSync(`${dataset.tmp_path}/meta/meta_ch${nChr}_${fragId}.json`, JSON.stringify({
 					id: fragId,
 					best_match: match_results.best_match,
 					match_group: match_results.all_match_groups,
@@ -343,7 +329,7 @@ async function multi_coord(nChr) {
 				}
 
 
-				const output_fasta_file_name = `tmp/seq_frag/ch${nChr}_${fragId}.fa`;
+				const output_fasta_file_name = `${dataset.tmp_path}/seq_frag/ch${nChr}_${fragId}.fa`;
 				
 				console.log(output_fasta_file_name);
 
@@ -353,24 +339,24 @@ async function multi_coord(nChr) {
 				}, {}));
 				
 				//search next range
-				if (search_end >= chr_info_list[0].length) {
-					break;
-				}
 				search_start = Math.min(pos_end_list[0] + 1, chr_info_list[0].length);
 				search_end = Math.min(search_start + argv_slice_size, chr_info_list[0].length);//
-				if (search_start == search_end) {
-					break;
-				}
 				//
 				match_results.best_match.forEach((match, i) => {
 					pos_start_list[i] = match.send + 1;
 				});
+
+				if (search_start == search_end || search_end >= chr_info_list[0].length) {
+					++fragId;
+					break;
+				}
 
 				max_delta = argv_init_max_delta;
 			}
 			else {
 				//search next range
 				if (search_end >= chr_info_list[0].length) {
+					++fragId;
 					break;
 				}
 
@@ -426,13 +412,13 @@ async function multi_coord(nChr) {
 		}, {});
 
 		{
-			const coord_text_1 = fragId + "\tstart\t" + [search_start, ...extract_seq_list.map((tuple) => tuple[0])].join("\t|\t");
-			const coord_text_2 = fragId + "\t  end\t" + [search_end,   ...extract_seq_list.map((tuple) => tuple[1])].join("\t|\t");
+			const coord_text_1 = fragId + "\tstart\t" + [search_start, ...pos_start_list].join("\t|\t");
+			const coord_text_2 = fragId + "\t  end\t" + [search_end,   ...chr_info_list.map(chrInfo => chrInfo.length)].join("\t|\t");
 
 			console.log(coord_text_1);
 			console.log(coord_text_2);
 			
-			fs.writeFileSync(`tmp/multi_coord_ch${nChr}.txt`, coord_text_1 + "\n" + coord_text_2 + "\n", { flag: "a" });
+			fs.writeFileSync(`${dataset.tmp_path}/multi_coord_ch${nChr}.txt`, coord_text_1 + "\n" + coord_text_2 + "\n", { flag: "a" });
 		}
 
 		console.log("seq_from_ref1", seq_from_ref1);
@@ -446,7 +432,7 @@ async function multi_coord(nChr) {
 			seq_from_ref1.every(a => a) ||
 			seq_from_ref1.slice(1).every(a => !a)
 		) {//seq_from_ref1[0] -> true
-			const output_fasta_file_name = `tmp/seq_frag/ch${nChr}_${fragId}.fa`;
+			const output_fasta_file_name = `${dataset.tmp_path}/seq_frag/ch${nChr}_${fragId}.fa`;
 
 			console.log(output_fasta_file_name);
 			
@@ -460,8 +446,8 @@ async function multi_coord(nChr) {
 				return !seq_from_ref1[idx];
 			});
 
-			const output_r1_fasta_file_name = `tmp/seq_frag/ch${nChr}_${fragId}_ref1.fa`;
-			const output_r2_fasta_file_name = `tmp/seq_frag/ch${nChr}_${fragId}_ref2.fa`;
+			const output_r1_fasta_file_name = `${dataset.tmp_path}/seq_frag/ch${nChr}_${fragId}_ref1.fa`;
+			const output_r2_fasta_file_name = `${dataset.tmp_path}/seq_frag/ch${nChr}_${fragId}_ref2.fa`;
 
 			console.log(output_r1_fasta_file_name);
 			console.log(output_r2_fasta_file_name);
@@ -476,7 +462,7 @@ async function multi_coord(nChr) {
 			}, {}));
 		}
 	}
-	console.log("all fin");
+	console.log("chr fin");
 
 	return fragId;
 }

@@ -3,6 +3,9 @@
 const child_process = require("child_process");
 const fs = require("fs");
 const Path = require("path");
+const { loadSetting } = require("./setting.js");
+
+const setting = loadSetting();
 
 
 class BlastnCoord {
@@ -179,7 +182,7 @@ function execAsync(cmd, output_stdout, output_stderr) {
 function exec_blastn(query_file, subject_file, qstart, qend, sstart, send, _task_name) {
 	let query_loc = Number.isSafeInteger(qstart) && Number.isSafeInteger(qend) ? `-query_loc ${qstart}-${qend}` : "";
 	let subject_loc = Number.isSafeInteger(sstart) && Number.isSafeInteger(send) ? `-subject_loc ${sstart}-${send}` : "";
-	let cmd = `blastn -query ${query_file} ${query_loc} -subject ${subject_file} ${subject_loc} -outfmt 6`;
+	let cmd = `${setting.blastn_bin} -query ${query_file} ${query_loc} -subject ${subject_file} ${subject_loc} -outfmt 6`;
 
 	_task_name = _task_name || "default";
 
@@ -192,9 +195,13 @@ function exec_blastn(query_file, subject_file, qstart, qend, sstart, send, _task
 				console.error(stderr.toString());
 			}
 
+			// @ts-ignore
+			const tmp_path = globalThis.dataset.tmp_path;
+
 			if (err) {
 				console.error(err, { query_file, subject_file, qstart, qend, sstart, send, _task_name });
-				fs.writeFileSync(Path.join("./tmp", "ma_util_blastn", `ma_util_blastn_${_task_name}.txt`), JSON.stringify(err) + "\n", { flag: "a" });
+				
+				fs.writeFileSync(`${tmp_path}/ma_util_blastn/ma_util_blastn_${_task_name}.txt`, JSON.stringify(err) + "\n", { flag: "a" });
 				reject(err);
 			}
 			else {
@@ -204,7 +211,7 @@ function exec_blastn(query_file, subject_file, qstart, qend, sstart, send, _task
 				// });
 				let text = stdout.toString();
 
-				fs.writeFileSync(Path.join("./tmp", "ma_util_blastn", `ma_util_blastn_${_task_name}.txt`), cmd + "\n" + text + "\n", { flag: "a" });
+				fs.writeFileSync(`${tmp_path}/ma_util_blastn/ma_util_blastn_${_task_name}.txt`, cmd + "\n" + text + "\n", { flag: "a" });
 
 				resolve(text);
 			}
@@ -224,7 +231,7 @@ function exec_blastn(query_file, subject_file, qstart, qend, sstart, send, _task
 function exec_blastn_Ex(query_file, subject_file, qstart, qend, sstart, send, args) {
 	let query_loc = Number.isSafeInteger(qstart) && Number.isSafeInteger(qend) ? `-query_loc ${qstart}-${qend}` : "";
 	let subject_loc = Number.isSafeInteger(sstart) && Number.isSafeInteger(send) ? `-subject_loc ${sstart}-${send}` : "";
-	let cmd = `blastn -query ${query_file} ${query_loc} -subject ${subject_file} ${subject_loc} ${args} -outfmt 6`;
+	let cmd = `${setting.blastn_bin} -query ${query_file} ${query_loc} -subject ${subject_file} ${subject_loc} ${args} -outfmt 6`;
 
 	console.log(cmd);
 

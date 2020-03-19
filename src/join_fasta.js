@@ -3,63 +3,21 @@
 const fs = require("fs");
 const Path = require("path");
 
-const { argv_parse, loadChrLength, array_groupBy } = require("./util.js");
+const { argv_parse, array_groupBy } = require("./util.js");
 const { tsv_parse, table_to_object_list } = require("./tsv_parser.js");
 const { Dataset } = require("./dataset.js");
 const { readFasta, saveFasta } = require("./fasta_util.js");
-const { loadFragIdList } = require("./load_frag_list.js");
+const { loadFragIdList, MyCoord } = require("./load_frag_list.js");
+const { validation_chr } = require("./validation_seq.js");
 
 const argv = argv_parse(process.argv);
 
 const argv_dataset_path = String(argv["-dataset"] || "");
 const dataset = Dataset.loadFromFile(argv_dataset_path);
 
-let mafft_output_directory = String(argv["-i"] || "tmp/mafft_seq_frag");
+let mafft_output_directory = String(argv["-i"] || `${dataset.tmp_path}/mafft_seq_frag`);
 
-const ref1_chr_list = loadChrLength(`output/${dataset.ref}.length.txt`).list;
-
-class MyCoord {
-	constructor() {
-		this.id = "";
-		this.start = {
-			search: 0,
-			r1: 0,
-			r2: 0,
-			s1: 0,
-			s2: 0,
-			s3: 0,
-			s4: 0
-		};
-		this.end = {
-			search: 0,
-			r1: 0,
-			r2: 0,
-			s1: 0,
-			s2: 0,
-			s3: 0,
-			s4: 0
-		};
-		
-		this.removed = false;
-
-		/** @type {MyCoord[]} */
-		this.list = [];
-
-		this.centromere = false;
-	}
-
-	get length() {
-		return {
-			search: this.end.search - this.start.search,
-			r1: this.end.r1 - this.start.r1,
-			r2: this.end.r2 - this.start.r2,
-			s1: this.end.s1 - this.start.s1,
-			s2: this.end.s2 - this.start.s2,
-			s3: this.end.s3 - this.start.s3,
-			s4: this.end.s4 - this.start.s4
-		};
-	}
-}
+const genome_info_list = dataset.loadGenomeInfoList();
 
 if (process.argv[1] == __filename) {
 	main();
@@ -70,16 +28,20 @@ else {
 
 function main() {
 	merge_chr_all_fa();
+	
+	for (let nChr = 1; nChr <= genome_info_list[0].chr_list.length; ++nChr) {
+		validation_chr(nChr, dataset.tmp_path, false);
+	}
 }
 
 function merge_chr_all_fa() {
-	const all_chr_frag_list = loadFragIdList(dataset, true);//load_frag_id_list();
+	const all_chr_frag_list = loadFragIdList(dataset);//load_frag_id_list();
 
-	for (let nChr = 1; nChr <= ref1_chr_list.length; ++nChr) {
+	for (let nChr = 1; nChr <= genome_info_list[0].chr_list.length; ++nChr) {
 		if (all_chr_frag_list[nChr]) {
 			//let id_list = all_chr_frag_list[nChr].map(a => a.id);
 	
-			join_chr_frag(nChr, all_chr_frag_list[nChr], `tmp/mafft_ch${nChr}.fa`);
+			join_chr_frag(nChr, all_chr_frag_list[nChr], `${dataset.tmp_path}/mafft_ch${nChr}.fa`);
 		}
 		else {
 			console.log("skip", "ch", nChr);
@@ -87,136 +49,13 @@ function merge_chr_all_fa() {
 	}
 }
 
-/** @returns {{[nChr:number]:MyCoord[]}} */
-function load_frag_id_list() {
-	const AT_island = load_AT_island(dataset["AT-island"], data => data.length >= 3000);
-
-	/** @type {{[nChr:number]:MyCoord[]}} */
-	const all_chr_frag_list = {};
-
-	for (let nChr = 1; nChr <= ref1_chr_list.length; ++nChr) {
-		try {
-			const coords = load_ma_coord(`tmp/multi_coord_ch${nChr}.txt`);
-
-			const AT_desc_list = AT_island[nChr].sort((a, b) => b.length - a.length);
-			const cen_range = AT_desc_list[0];
-			{
-				let [at1, at2] = [AT_desc_list[0], AT_desc_list[1]].sort((a, b) => a.start - b.start);
-				console.log("ch", nChr, "at1, 500bp, at2", at1.start, at1.end, at2.start, at2.end);
-				// 合併 2 個鄰近的 AT island，2 個 AT island 間最多能有 1 個 window (QM6a ChIV: 1482500-1559500,1560000-1659000)
-				if ((at2.start - at1.end) <= Math.abs(at1.end - at1.start)) {
-					cen_range.start = at1.start;
-					cen_range.end = at2.end;
-					cen_range.length = at2.end - at1.start;
-				}
-			}
-			console.log("cen", cen_range.start, cen_range.end, cen_range.length);
-
-			let cen_fragId_list = Object.keys(coords).filter(id => {
-				let coord = coords[id];
-				if (cen_range.start <= coord.start.r1 && coord.end.r1 <= cen_range.end) {
-					return true;
-				}
-				// else if (coord.end.r1 > cen_range.end && (coord.end.r1 - cen_range.end) <= 5000) {
-				// 	return true;
-				// }
-				else {
-					return false;
-				}
-			});
-			if (cen_fragId_list.length <= 0) {
-				cen_fragId_list = Object.keys(coords).filter(id => {
-					let coord = coords[id];
-					if (coord.start.r1 <= cen_range.start && cen_range.end <= coord.end.r1) {//if frag.length >= cen // cen in frag
-						return true;
-					}
-					else {
-						return false;
-					}
-				});
-				if (cen_fragId_list.length <= 0) {
-					cen_fragId_list = Object.keys(coords).filter(id => {
-						let coord = coords[id];
-						if (coord.start.r1 <= cen_range.end && coord.end.r1 >= cen_range.start) {//border
-							return true;
-						}
-						else {
-							return false;
-						}
-					});
-				}
-			}
-
-			if (cen_fragId_list.length > 1) {
-				let { r1_len, r2_len, s1_len, s2_len, s3_len, s4_len } = cen_fragId_list.reduce((prev, id) => {
-					let rs_length = coords[id].length;
-					let [r1_len, r2_len, s1_len, s2_len, s3_len, s4_len] = [rs_length.r1, rs_length.r2, rs_length.s1, rs_length.s2, rs_length.s3, rs_length.s4];
-					return {
-						r1_len: prev.r1_len + r1_len,
-						r2_len: prev.r2_len + r2_len,
-						s1_len: prev.s1_len + s1_len,
-						s2_len: prev.s2_len + s2_len,
-						s3_len: prev.s3_len + s3_len,
-						s4_len: prev.s4_len + s4_len
-					};
-				}, { r1_len: 0, r2_len: 0, s1_len: 0, s2_len: 0, s3_len: 0, s4_len: 0 });
-
-				let s_len = [s1_len, s2_len, s3_len, s4_len];
-				let qs_len = s_len.map(a => Number((a / r1_len).toFixed(1)));
-				let cs_len = s_len.map(a => Number((a / r2_len).toFixed(1)));
-				
-				let qs_c = qs_len.reduce((prev, curr) => prev + (curr == 1 ? 1 : 0), 0);
-				let cs_c = cs_len.reduce((prev, curr) => prev + (curr == 1 ? 1 : 0), 0);
-
-				if (qs_c >= 2 && cs_c >= 2) {
-					console.log("cen", "ch", nChr, "qs_c", qs_c);
-					console.log("cen", "ch", nChr, "cs_c", cs_c);
-				}
-				else {
-					let l_id = cen_fragId_list[cen_fragId_list.length - 1];
-					let keys = Object.keys(coords);
-					let next_id = keys[keys.indexOf(l_id) + 1];
-
-					cen_fragId_list.push(next_id);
-					console.log("cen", "ch", nChr, "next_id", next_id);
-				}
-			}
-
-			cen_fragId_list.forEach(id => {
-				coords[id].removed = true;
-				console.log("cen", "ch", nChr, "frag", id);
-			});
-
-			coords[cen_fragId_list[0]].list = cen_fragId_list.map(id => coords[id]);
-			coords[cen_fragId_list[0]] = Object.assign({}, coords[cen_fragId_list[0]]);//clone
-
-			coords[cen_fragId_list[0]].removed = false;
-			coords[cen_fragId_list[0]].id = `${cen_fragId_list[0]}_${cen_fragId_list[cen_fragId_list.length - 1]}`;
-			coords[cen_fragId_list[0]].centromere = true;
-
-			all_chr_frag_list[nChr] = Object.keys(coords).map(id => coords[id]).filter(coord => {
-				if (coord.id && !coord.removed) {
-					return true;
-				}
-				else {
-					return false;
-				}
-			});
-		}
-		catch (ex) {
-			console.error(ex);
-		}
-	}
-
-	return all_chr_frag_list;
-}
-
 /**
- * @param {number} nChr 
- * @param {MyCoord[]} coord_list 
- * @param {string} output_name 
+ * @param {number} nChr
+ * @param {MyCoord[]} coord_list
+ * @param {string} output_name
  */
 function join_chr_frag(nChr, coord_list, output_name) {
+	/** @type {{ [seqName:string]:string }} */
 	let output_fa = {
 	};
 	
@@ -305,53 +144,3 @@ function join_chr_frag(nChr, coord_list, output_name) {
 
 	saveFasta(output_name, output_fa);
 }
-
-/**
- * @param {string} filename
- * @returns {{[nChr:number]:{start:number,end:number,length:number}[]}}
- */
-function load_AT_island(filename, filter) {
-	const text_tab = fs.readFileSync(filename).toString();
-	let table = table_to_object_list(tsv_parse(text_tab), ["chr", "start", "end", "length"]);
-	
-	/** @type {{[nChr:number]:{start:number,end:number,length:number}[]}} */
-	let group = {};
-
-	//group by chr
-	table.forEach(row => {
-		if (!group[row.chr]) {
-			group[row.chr] = [];
-		}
-		let data = {
-			start: Number(row.start),
-			end: Number(row.end),
-			length: Number(row.length),
-		};
-		if (!filter || filter(data)) {
-			group[Number(row.chr)].push(data);
-		}
-	});
-
-	return group;
-}
-
-function load_ma_coord(filename) {
-	const text = fs.readFileSync(filename).toString();
-	let rows = text.trim().split("\n").map(a => a.split(/\t/).map(b => b.trim()).filter(b => b != "|"));
-	/** @type {{[id:string]:MyCoord}} */
-	let map = {};
-	rows.forEach(row => {
-		let [id, type, search, r1, r2, s1, s2, s3, s4] = row;
-		if (!map[id]) {
-			map[id] = Object.assign(new MyCoord(), {
-				id: id,
-			});
-		}
-		map[id][type] = {
-			search, r1, r2, s1, s2, s3, s4,
-		};
-	});
-	
-	return map;
-}
-

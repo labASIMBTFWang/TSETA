@@ -5,7 +5,7 @@ const fs = require("fs");
 const Path = require("path");
 const child_process = require("child_process");
 
-const { argv_parse, loadChrLength } = require("./util.js");
+const { argv_parse } = require("./util.js");
 const { readFasta, saveFasta } = require("./fasta_util.js");
 const { Dataset } = require("./dataset.js");
 
@@ -17,6 +17,7 @@ const argv_dataset_patha = String(argv["-dataset"] || "");
 const argv_find_border = String(argv["--find-border"] || "");
 
 const dataset = Dataset.loadFromFile(argv_dataset_patha);
+const genome_info_list = dataset.loadGenomeInfoList();
 
 
 class ErrInfo {
@@ -33,11 +34,24 @@ class ErrInfo {
 	}
 }
 
-main();
+if (process.argv[1] == __filename) {
+	main();
+}
 
 function main() {
-	for (let nChr = 1; nChr <= dataset.chrNames.length; ++nChr) {
-		const input_path = `mafft_ch${nChr}.fa`;
+	for (let nChr = 1; nChr <= genome_info_list[0].chr_list.length; ++nChr) {
+		validation_chr(nChr, dataset.tmp_path, false);
+	}
+}
+
+/**
+ * @param {number} nChr
+ * @param {string} directory_path
+ * @param {boolean} skip_if_not_exist
+ */
+function validation_chr(nChr, directory_path, skip_if_not_exist) {
+	const input_path = `${directory_path}/mafft_ch${nChr}.fa`;
+	if (fs.existsSync(input_path)) {
 		const input_fasta = readFasta(Path.join(argv_input_path, input_path));
 
 		console.log("input_path", input_path);
@@ -50,24 +64,30 @@ function main() {
 			find_border(seq_id_list, input_fasta, nChr);
 		}
 	}
+	else if (!skip_if_not_exist) {
+		console.log("skip:", input_path);
+	}
 }
 
 function validation_seq(seq_id_list, fa, nChr) {
-	let genome_name_list = [
-		dataset.ref,
-		dataset.parental_list[1],
-		dataset.progeny_list[0],
-		dataset.progeny_list[1],
-		dataset.progeny_list[2],
-		dataset.progeny_list[3],
-	];
-	
-	let raw_seq = genome_name_list.map((genome_name, i) => {
-		let chr_seq = readFasta(dataset.genomeFileMap[genome_name]);
-		return chr_seq[seq_id_list[i]];
+	let raw_seq = dataset.genomeNameList.map((genome_name, i) => {
+		try {
+			const chr_seq = readFasta(dataset.genomeFileMap[genome_name]);
+			return chr_seq[seq_id_list[i]];
+		}
+		catch (ex) {
+			console.log(`dataset.genomeFileMap =>`, dataset.genomeFileMap);
+			console.log(`dataset.genomeFileMap[${genome_name}] =>`, dataset.genomeFileMap[genome_name]);
+			throw ex;
+		}
 	});
 	
 	seq_id_list.forEach((name, idx) => {
+		const ma_to_raw_seq = fa[name].replace(/-/g, "");
+		if (ma_to_raw_seq.length != raw_seq[idx].length) {
+			console.log("in  len:", ma_to_raw_seq.length);
+			console.log("raw len:", raw_seq[idx].length);
+		}
 		let s_name = seq_id_list[idx];
 		let has_error = false;
 		let to_raw_pos = 0;
@@ -77,9 +97,9 @@ function validation_seq(seq_id_list, fa, nChr) {
 				}
 				else {
 					const ext = 10;
-					console.log(s_name, "error at", i);
+					console.log(s_name, "error in:", (i + 1), "raw:", to_raw_pos);
 					console.log("in ", fa[name].slice(i - ext, i + 20));
-					console.log("raw", raw_seq[idx].slice(to_raw_pos - ext, to_raw_pos + 20));
+					console.log("raw", raw_seq[idx].slice(to_raw_pos - ext, to_raw_pos + ext * 2));
 					let mark = [...fa[name].slice(i - ext, i)].fill(".").join("") + "^";
 					console.log("mrk", mark);
 
@@ -256,3 +276,7 @@ function find_border(seq_id_list, fa, nChr) {
 
 	console.log("count", count);
 }
+
+
+module.exports.validation_chr = validation_chr;
+

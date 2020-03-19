@@ -1,9 +1,5 @@
 // @ts-check
 
-// @ts-ignore
-let seq_id_list = [
-];
-
 class RIP_data {
 	constructor() {
 		/** @type {number} pos index */
@@ -32,7 +28,7 @@ let rip_list = [];
 
 ///** @type {Uint8Array} */
 //let parental_cmp_uint8array = null;
-let region_rect = [[], [], [], [], [], []];
+let region_rect = [];
 /** @type {Uint32Array} ref1 pos map to multialign */
 let ref1_pos_uint32array = null;
 /** @type {Uint32Array} multialign pos map to ref1 */
@@ -46,43 +42,73 @@ let pos_ref2_uint32array = null;
 /** @type {Uint32Array} ref1 ref2 score */
 let ref1_ref2_score_uint32array = null;
 
+class MarkerValue {
+	constructor() {
+		/** @type {number} */
+		this.pos = 0;
+		/** @type {number} */
+		this.value = 0;
+		/** @type {number} */
+		this.ref1_pos = 0;
+		/** @type {string} */
+		this.type = "";
+		/** @type {string} */
+		this.name = "";
+	}
+}
 
-const MAKER_NAME = [
-	"Noncrossors (3:1 makers)",
-	"Noncrossors (4:0 makers)",
-	"1n:3 makers",
-	"2n:2 makers",
-	"3n:1 makers",
-	"4n:0 makers",
-	"RIP",
-	"illegitimate mutation makers",
-];
-const { MARKER_22, MARKER_31, MARKER_40, MARKER_1n3, MARKER_2n2, MARKER_3n1, MARKER_4n0, MARKER_RIP, MARKER_ILLEGITIMATE, /*MARKER_PROGENY_INS*/ } = {
-	MARKER_22: 0,
-	MARKER_31: 1,
-	MARKER_40: 2,
-	MARKER_1n3: 3,
-	MARKER_2n2: 4,
-	MARKER_3n1: 5,
-	MARKER_4n0: 6,
-	MARKER_RIP: 7,
-	MARKER_ILLEGITIMATE: 8,
-	//MARKER_PROGENY_INS: 9,
-};
+class MarkerData {
+	/**
+	 * @param {string} name - display name
+	 * @param {string} property - property name
+	 * @param {number} order - display order
+	 */
+	constructor(name, property, order) {
+		/** @type {string} - display name */
+		this.name = name;
 
-/** @type {{pos:number,value:number,ref1_pos:number,type:string,name:string}[][]} */
-let spore_cmp_array = [
-	[],//22
-	[],//31
-	[],//40
-	[],//1n3
-	[],//2n2
-	[],//3n1
-	[],//4n0
-	[],//rip
-	[],//illegitimate mutation
-	//[],//progeny ins
-];
+		/** @type {string} - property name */
+		this.property = property;
+
+		/** @type {number} - display order */
+		this.order = order;
+
+		/** @type {MarkerValue[]} */
+		this.values = [];
+	}
+}
+
+class MarkerList {
+	constructor() {
+		/** @type {MarkerData[]} */
+		this.list = [];
+
+		/** @type {{[propertyName:string]:MarkerData}} */
+		this.map = {};
+	}
+
+	/**
+	 * @param {string} name - display name
+	 * @param {string} property - property name
+	 * @param {any} [_]
+	 */
+	add_marker_type(name, property, _) {
+		const marker_data = new MarkerData(name, property, this.list.length)
+		this.list.push(marker_data);
+		this.map[property] = marker_data;
+	}
+
+	/**
+	 * @param {string} markerName
+	 * @param {MarkerValue} value
+	 */
+	add_marker_value(markerName, value) {
+		this.map[markerName].values.push(value);
+	}
+}
+
+/** @type {MarkerList} */
+let allMarker = null;
 
 const ColorID = get_colorID_Data();
 function get_colorID_Data() {
@@ -100,68 +126,11 @@ function get_colorID_Data() {
 	colorID.indel_mask = 0b1000_0000;
 	return colorID;
 }
-
-
-const $color_set_print = {
-	"dad_bk": "#00FFFF",
-	"dad": "#00FFFF",
-	//"dad": "#0000FF",
-	
-	"mom_bk": "#FF90CB",
-	"mom": "#FF90CB",
-	//"mom": "#FF0000",
-
-	"identical": "#FFFFFF",
-	"deletion": "#FFFFFF",
-
-	"rip": "#000000",//darkgray (more dark)
-
-	"co": "#FF0000",
-
-	// "31": "#0000FF",
-	// "40": "#00FF00",
-	// "22indel": "#FFA500",
-	// "31indel": "#9400d3",//darkviolet
-	// "40indel": "#A0A0A0",
-
-	//45, 90, 135, 180, 225, 270, 315
-	"31": "hsl(60, 90%, 40%)",
-	"40": "hsl(120, 90%, 40%)",
-	"13indel": "hsl(190, 90%, 40%)",
-	"22indel": "hsl(250, 90%, 40%)",
-	"31indel": "hsl(280, 90%, 50%)",
-	"40indel": "hsl(0, 0%, 60%)",
-
-	"illegitimate_mutation": "#FF9800",
-
-	"diff": "#EEEEEE",
-
-	//
-
-	"rDNA": "#FF0000",
-};
-let marker_order = [	
-	"31", "40", "13indel", "22indel", "31indel", "40indel", "rip", "illegitimate_mutation",
-];
-
-const $color_set_view = Object.assign({}, $color_set_print, {
-	"rip": "#00ff00",
-});
-
-let current_colorset = $color_set_print;
-
-const args_colors = {
-	get [ColorID.dad]() { return current_colorset["dad"]; },		// 0
-	get [ColorID.mom]() { return current_colorset["mom"]; },		// 1
-	get [ColorID.identical]() { return current_colorset["identical"]; },	// 2 id
-	get [ColorID.dad_rip]() { return current_colorset["rip"]; },		// 3 ref1 RIP
-	get [ColorID.mom_rip]() { return current_colorset["rip"]; },		// 4 ref2 RIP
-	get [ColorID.diff]() { return current_colorset["diff"]; },		// 5 diff
-	get [ColorID.none]() { return "#FFFFFF"; },	// 8 none
-};
-
 class AnalysisOptions {
 	constructor() {
+		/** @type {"tetrad"|"SNP"} */
+		this.mode = "tetrad";
+
 		/** @param {number} nChr */
 		this.nChr = 0;
 
@@ -175,6 +144,33 @@ class AnalysisOptions {
 
 		/** @type {function(string):void} */
 		this._onProgressReport = null;
+
+		/** @type {boolean} */
+		this.ignore_rDNA = false;
+	}
+}
+
+/**
+ * @param {Partial<AnalysisOptions>} options
+ */
+function initAnalyser(options) {
+	allMarker = new MarkerList();
+
+	if (options.mode == "tetrad") {
+		allMarker.add_marker_type("(2:2 makers)", "22", "MARKER_22");
+		allMarker.add_marker_type("Noncrossors (3:1 makers)", "31", "MARKER_31");
+		allMarker.add_marker_type("Noncrossors (4:0 makers)",  "40","MARKER_40");
+		allMarker.add_marker_type("1n:3 makers", "1n3", "MARKER_1n3");
+		allMarker.add_marker_type("2n:2 makers", "2n2", "MARKER_2n2");
+		allMarker.add_marker_type("3n:1 makers", "3n1", "MARKER_3n1");
+		allMarker.add_marker_type("4n:0 makers", "4n0", "MARKER_4n0");
+		allMarker.add_marker_type("RIP", "rip", "MARKER_RIP");
+		allMarker.add_marker_type("illegitimate mutation makers", "illegitimate_mutation", "MARKER_31");
+	}
+	else {
+		allMarker.add_marker_type("(dummy makers)", "dummy", "MARKER_dummy");
+		allMarker.add_marker_type("snp", "snp");
+		allMarker.add_marker_type("snv", "snv");
 	}
 }
 
@@ -183,17 +179,10 @@ class AnalysisOptions {
  * @param {Partial<AnalysisOptions>} options
  */
 function loadCmpData(seq_list, options) {
-	seq_id_list = Object.keys(seq_list);
-	seq_id_list.forEach((id, i) => seq_list[i] = seq_list[id]);
-
 	calc_seg_reg(seq_list, options);
-
 	return {
 		// argv_fill_prev_color: options.fill_prev_color,
 		// argv_nChr: options.nChr,
-		
-		seq_id_list,
-		seq_list,
 
 		align_start_index,
 		align_end_index,
@@ -213,18 +202,17 @@ function loadCmpData(seq_list, options) {
 		pos_ref2_uint32array: pos_ref2_uint32array,
 		
 		spore_cmp: {
-			s22: spore_cmp_array[MARKER_22],
-			s31: spore_cmp_array[MARKER_31],
-			s40: spore_cmp_array[MARKER_40],
-			s1n3: spore_cmp_array[MARKER_1n3],
-			s2n2: spore_cmp_array[MARKER_2n2],
-			s3n1: spore_cmp_array[MARKER_3n1],
-			s4n0: spore_cmp_array[MARKER_4n0],
-			illegitimate_mutation_list: spore_cmp_array[MARKER_ILLEGITIMATE],
+			s22: allMarker.map["22"],
+			s31: allMarker.map["31"],
+			s40: allMarker.map["40"],
+			s1n3: allMarker.map["1n3"],
+			s2n2: allMarker.map["2n2"],
+			s3n1: allMarker.map["3n1"],
+			s4n0: allMarker.map["4n0"],
+			illegitimate_mutation_list: allMarker.map["illegitimate_mutation"],
 		},
 		
 		ColorID: ColorID,
-		current_colorset: Object.assign({}, current_colorset),//clone
 	}
 }
 
@@ -233,6 +221,10 @@ function loadCmpData(seq_list, options) {
  * @param {Partial<AnalysisOptions>} options
  */
 function calc_seg_reg(seq_list, options) {
+	if (options.mode == null) {
+		throw new TypeError("options.mode");
+	}
+
 	init_viewModel(seq_list);
 
 	/** @type {{ start: number, end: number, state: number[], co_idx: number }[]} */
@@ -321,17 +313,85 @@ function calc_seg_reg(seq_list, options) {
 		let ref1 = ref1_seq[pos];
 		let ref2 = ref2_seq[pos];
 		
-		push_data(
-			Math.max(1, ref1 != "-" ? ref1_pos : (ref1_pos - 1)),
-			Math.max(1, ref2 != "-" ? ref2_pos : (ref2_pos - 1))
+		//AnalysisOptions
+		if (options.mode == "tetrad") {
+			push_tetrad_data(
+				Math.max(1, ref1 != "-" ? ref1_pos : (ref1_pos - 1)),
+				Math.max(1, ref2 != "-" ? ref2_pos : (ref2_pos - 1))
 			);
+		}
+		else {
+			push_SNP_data(Math.max(1, ref1 != "-" ? ref1_pos : (ref1_pos - 1)));
+		}
 
 		/**
-		 * 
+		 * @param {number} ref1_pos
+		 */
+		function push_SNP_data(ref1_pos) {
+			let row = {
+				chr: options.nChr,
+				pos: pos,
+			};
+
+			let has_snp = false;
+			let has_indel = false;
+
+			seq_list.slice(1).forEach((seq, idx) => {
+				const sid = Number(idx) + 1;
+				const va = seq[pos];
+				
+				if (va == ref1) {
+					row[sid] = ColorID.dad;
+				}
+				else {
+					row[sid] = ColorID.mom;
+					has_snp = true;
+				}
+
+				let is_indel = va == "-";
+				has_indel = is_indel || has_indel;
+
+				row[sid] = row[sid] | (is_indel ? ColorID.indel_bit : 0);
+			});
+			let ref1_is_indel = ref1 == "-";
+			row[0] = ColorID.dad | (ref1_is_indel ? ColorID.indel_bit : 0);
+
+			seg_snp[pos] = row;
+			
+			if (has_snp) {
+				if (ref1_is_indel || has_indel) {
+					let marker = {
+						type: "SNP",
+						name: allMarker.map["snp"].name,
+						pos: pos,
+						value: 0,
+						ref1_pos: ref1_pos,
+					};
+					allMarker.map["snp"].values.push(marker);
+				}
+				else {
+					let marker = {
+						type: "SNV",
+						name: allMarker.map["snv"].name,
+						pos: pos,
+						value: 1,
+						ref1_pos: ref1_pos,
+					};
+					allMarker.map["snv"].values.push(marker);
+				}
+			}
+
+			if (!ref1_pos_uint32array[ref1_pos]) {
+				ref1_pos_uint32array[ref1_pos] = pos + 1;
+			}
+			pos_ref1_uint32array[pos] = ref1_pos;
+		}
+
+		/**
 		 * @param {number} ref1_pos
 		 * @param {number} ref2_pos
 		 */
-		function push_data(ref1_pos, ref2_pos) {
+		function push_tetrad_data(ref1_pos, ref2_pos) {
 			if (co_detail_list) {
 				if (ref1_pos < current_co_detail.end) {
 					if (ref1_pos > current_co_detail.start) {
@@ -374,12 +434,11 @@ function calc_seg_reg(seq_list, options) {
 			};
 
 			let is_rDNA = (() => {
-				if (options.nChr == options.rDNA_info.chr) {
-					// const rDNA_ma_start = Number(2600866);//old_s_2601008
-					// const rDNA_ma_end = Number(2694157);//old_e_2717279
-					const rDNA_ma_start = options.rDNA_info.alignment_start;
-					const rDNA_ma_end = options.rDNA_info.alignment_end;
-					if (pos >= rDNA_ma_start && pos <= rDNA_ma_end) {
+				if (options.ignore_rDNA) {
+					return false;
+				}
+				if (options.rDNA_info && options.nChr == options.rDNA_info.chr) {
+					if (pos >= options.rDNA_info.alignment_start && pos <= options.rDNA_info.alignment_end) {
 						return true;
 					}
 				}
@@ -417,12 +476,12 @@ function calc_seg_reg(seq_list, options) {
 					
 					let a_indel = spores.filter(a => a == "-");
 					let spores_is_indel = a_indel.length > 0;
-					let col_idx = MARKER_RIP;
+					let col_idx = allMarker.map["rip"].order;
 					let marker = Object.assign({
 						type: "RIP",
-						name: MAKER_NAME[col_idx],
+						name: allMarker.list[col_idx].name,
 					}, make_marker(spores_is_indel));
-					spore_cmp_array[col_idx].push(marker);
+					allMarker.list[col_idx].values.push(marker);
 				}
 				else {
 					if (!cmp_ref1_ref2) {
@@ -435,10 +494,10 @@ function calc_seg_reg(seq_list, options) {
 					const label = push_spore_maker();
 					if (label) {
 						let { col_idx, marker } = label;
-						if (!spore_cmp_array[col_idx]) {
+						if (!allMarker.list[col_idx]) {
 							console.log({col_idx});
 						}
-						spore_cmp_array[col_idx].push(marker);
+						allMarker.list[col_idx].values.push(marker);
 					}
 				}
 				prev_has_rip = rip_ref;
@@ -453,15 +512,16 @@ function calc_seg_reg(seq_list, options) {
 					let n_1s = a_1s.length;
 					let n_2s = a_2s.length;
 
-					const snp_marker_type_map = [ [], [], [], [], [] ];
+					const snp_marker_order_map = [ [], [], [], [], [] ];
 
-					snp_marker_type_map[0][4] = MARKER_40;
-					snp_marker_type_map[1][3] = MARKER_31;
-					snp_marker_type_map[2][2] = MARKER_22;
-					snp_marker_type_map[3][1] = MARKER_31;
-					snp_marker_type_map[4][0] = MARKER_40;
+					snp_marker_order_map[0][4] = allMarker.map["40"].order;
+					snp_marker_order_map[1][3] = allMarker.map["31"].order;
+					snp_marker_order_map[2][2] = allMarker.map["22"].order;
+					snp_marker_order_map[3][1] = allMarker.map["31"].order;
+					snp_marker_order_map[4][0] = allMarker.map["40"].order;
 
-					let col_idx = snp_marker_type_map[n_1s][n_2s];
+					/** @type {number} */
+					let col_idx = snp_marker_order_map[n_1s][n_2s];
 
 					let marker;
 
@@ -470,30 +530,30 @@ function calc_seg_reg(seq_list, options) {
 							// 2:2, 3:1, 4:0
 							marker = Object.assign({
 								type: "SNV",
-								name: MAKER_NAME[col_idx],
+								name: allMarker.list[col_idx].name,
 							}, make_marker(spores_is_indel));
 						}
 						else {
 							// 1n3 2n2 3n1 4n0
-							if (col_idx == MARKER_31) {
+							if (col_idx == allMarker.map["31"].order) {
 								if (a_indel.length == 1) {
-									col_idx = MARKER_1n3;
+									col_idx = allMarker.map["1n3"].order;
 								}
 								else if (a_indel.length == 3) {
-									col_idx = MARKER_3n1;
+									col_idx = allMarker.map["3n1"].order;
 								}
 							}
 							else {
-								if (col_idx == MARKER_40) {
-									col_idx = MARKER_4n0;
+								if (col_idx == allMarker.map["40"].order) {
+									col_idx = allMarker.map["4n0"].order;
 								}
-								else if (col_idx == MARKER_22) {
-									col_idx = MARKER_2n2;
+								else if (col_idx == allMarker.map["22"].order) {
+									col_idx = allMarker.map["2n2"].order;
 								}
 							}
 							marker = Object.assign({
 								type: "SNP",
-								name: MAKER_NAME[col_idx],
+								name: allMarker.list[col_idx].name,
 							}, make_marker(spores_is_indel));
 						}
 					}
@@ -515,7 +575,7 @@ function calc_seg_reg(seq_list, options) {
 
 						if (mut_arr.some(aa => aa.length > 0)) {
 							//is rip
-							col_idx = MARKER_ILLEGITIMATE;
+							col_idx = allMarker.map["illegitimate_mutation"].order;
 
 							// illegitimate mutation
 							marker = Object.assign({
@@ -525,7 +585,7 @@ function calc_seg_reg(seq_list, options) {
 						}
 						// else if (p_ins_arr.some(aa => aa.length > 0)) {
 						// 	//progeny ins 1n3 2n2 3n1 
-						// 	col_idx = MARKER_PROGENY_INS;
+						// 	col_idx = markerTypes.map["PROGENY_INS"];
 						// 	// progeny ins
 						// 	marker = Object.assign({
 						// 		type: "progeny ins",
@@ -537,21 +597,23 @@ function calc_seg_reg(seq_list, options) {
 							// 1n3 2n2 3n1 4n0
 							let n_del = a_indel.length;
 							if (n_del == 1) {
-								col_idx = MARKER_1n3;
+								col_idx = allMarker.map["1n3"].order;
 							}
 							else if (n_del == 2) {
-								col_idx = MARKER_2n2;
+								col_idx = allMarker.map["2n2"].order;
 							}
 							else if (n_del == 3) {
-								col_idx = MARKER_3n1;
+								col_idx = allMarker.map["3n1"].order;
 							}
 							else if (n_del == 4) {
-								col_idx = MARKER_4n0;
+								col_idx = allMarker.map["4n0"].order;
 							}
-							marker = Object.assign({
-								type: "progeny indel",
-								name: MAKER_NAME[col_idx],
-							}, make_marker(spores_is_indel));
+							if (col_idx != null) {
+								marker = Object.assign({
+									type: "progeny indel",
+									name: allMarker.list[col_idx]. name,
+								}, make_marker(spores_is_indel));
+							}
 						}
 					}
 
@@ -732,7 +794,7 @@ function calc_seg_reg(seq_list, options) {
 							// 	value: (row[5] << 3 | row[4] << 2 | row[3] << 1 | row[2] << 0) | (indel ? ColorID.indel_bit : 0),
 							// });
 							if (col_idx >= 0 /* && pos >= align_start_index && pos <= align_end_index*/) {
-								spore_cmp_array[col_idx].push({
+								allMarker.list[col_idx].values.push({
 									pos: pos,
 									ref1_pos,
 									value: (row[5] << 3 | row[4] << 2 | row[3] << 1 | row[2] << 0) | (indel ? ColorID.indel_bit : 0),
@@ -1005,7 +1067,7 @@ function isRIP(co_detail, ref1_pos, a, b, c, d, spores, ref1, ref2, cmp_ref1_ref
 }
 
 function init_viewModel(seq_list) {
-	region_rect = [[], [], [], [], [], []];
+	region_rect = seq_list.map(_ => []);
 	//parental_cmp_uint8array = new Uint8Array(seq_list[0].length);
 	ref1_pos_uint32array = new Uint32Array(seq_list[0].length);
 	pos_ref1_uint32array = new Uint32Array(seq_list[0].length);
@@ -1013,24 +1075,13 @@ function init_viewModel(seq_list) {
 	pos_ref2_uint32array = new Uint32Array(seq_list[0].length);
 	//rip_map_uint8array = new Uint8Array(seq_list[0].length);
 	ref1_ref2_score_uint32array = new Uint32Array(seq_list[0].length);
-	spore_cmp_array = [
-		[],//22
-		[],//31
-		[],//40
-		[],//1n3
-		[],//2n2
-		[],//3n1
-		[],//4n0
-		[],//rip
-		[],//illegitimate mutation
-		//[],//progeny ins
-	];
+	allMarker.list.forEach(a => a.values.splice(0));//clear all
 	align_start_index = -1;
 	align_end_index = -1;
 }
 
-async function _merge_seg(seq_list, seg_snp) {
-	for (let sid = 0; sid < region_rect.length; ++sid) {
+function _merge_seg(seq_list, seg_snp) {
+	for (let sid = 0; sid < seq_list.length; ++sid) {
 		let start = 0;
 		let prev = seg_snp[start][sid];
 		let i = 1;
@@ -1057,8 +1108,9 @@ async function _merge_seg(seq_list, seg_snp) {
 }
 
 try {
-	if (module.exports) {
+	if (!globalThis.window) {
 		module.exports.loadCmpData = loadCmpData;
+		module.exports.initAnalyser = initAnalyser;
 	}
 }
 catch (ex) {

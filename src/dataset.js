@@ -9,13 +9,14 @@ const { parse_GC_Content_table, GC_Content_Data } = require("./GC_content_util.j
 
 class GenomeInfo {
 	/**
+	 * @param {Dataset} dataset
 	 * @param {string} name
 	 */
-	constructor(name) {
+	constructor(dataset, name) {
 		this.name = name;
 		
-		this.chr_list = GenomeInfo.loadChrLength(`output/${name}.length.txt`).list;
-		this.chr_map = GenomeInfo.loadChrLength(`output/${name}.length.txt`).map;
+		this.chr_list = GenomeInfo.loadChrLength(`${dataset.output_path}/${name}.length.txt`).list;
+		this.chr_map = GenomeInfo.loadChrLength(`${dataset.output_path}/${name}.length.txt`).map;
 
 		/** @type {{ [sChr:string]: string }} */
 		this.fasta = {};
@@ -65,64 +66,82 @@ class RibosomalDNA_Data {
 
 class RibosomalDNA_Position_info {
 	constructor() {
-		this.chr = 6;
-		this.alignment_start = 2600866;
-		this.alignment_end = 0;
+		/** @type {number} */
+		this.chr = null;
+		/** @type {number} */
+		this.alignment_start = null;
+		/** @type {number} */
+		this.alignment_end = null;
 	}
 }
 
-class LoadingFlags {
+class GenomeDataSet {
 	constructor() {
-		this.ribosomal_dna = true;
-		this.gc_content = true;
-	}
-}
+		this.name = "";
 
-class Dataset {
-	constructor() {
-		//user input data
-
-		//Chr#    start   end     GC%
-		this.gc = {};
+		/** @type {"tetrad"|"SNP"} */
+		this.mode = "tetrad";
 
 		this.ref = "";
-		
+
 		/** @type {string[]} */
 		this.parental_list = [];
+
+		/** @type {{[genomeName:string]:string}} - parental fasta file apth */
+		this.parental = {};
 
 		/** @type {string[]} */
 		this.progeny_list = [];
 
-		/** @type {{[refName:string]:string}} - parental fasta file apth */
-		this.parental = {};
-		
-		/** @type {{[refName:string]:string}} - progeny fasta file apth */
+		/** @type {{[genomeName:string]:string}} - progeny fasta file path*/
 		this.progeny = {};
+	}
+	
+	/** @type {string} */
+	get output_path() {
+		return encodeURIComponent(this.name);
+	}
+	
+	/** @type {string} */
+	get tmp_path() {
+		return `${this.output_path}/tmp`;
+	}
+}
+
+class MafftOptions {
+	constructor() {
+		this.algorithm = "localpair";
+		this.default_algorithm = "";
+		this.maxIterate = 1000;
+		this.thread = 20;
+	}
+}
+
+class Dataset extends GenomeDataSet {
+	constructor() {
+		super();
+
+		//user input data
 		
-		/** @type {string[]} ref chr / parental[0] chr */
-		this.chrNames = [];
+		/** @type {MafftOptions} */
+		this.mafft = null;
 
-		this.mafft = {};
-		this.mafft.algorithm = "--localpair";
-		this.mafft.default_algorithm = "";
-		this.mafft.maxIterate = 1000;
-		this.mafft.thread = 20;
+		/** @type {{ closeCOsMinDistance: number }} */
+		this.crossover = null;
 
-		this.crossover = {
-			closeCOsMinDistance: 5000,
-		};
+		/** @type {{[parentalName:string]:{[nChr:number]:GC_Content_Data[]}}} */
+		this.gc_content = null;
+		// Object.defineProperty(this, "gc_content", {
+		// 	get: function () {
+		// 		throw new TypeError("gc");
+		// 	},
+		// });
 
-		/** file path */
-		this["GC content"] = "";
+		/** @type {number} */
+		this.GC_Content_window = null;
 
-		/** file path */
-		this["AT-island"] = "";
-
-		/** file path */
-		this["GC content file"] = "";
-
-		/** file path */
-		this["AT-island file"] = "";
+		/** @type {string} file path */
+		this.GC_Content_filePath = null;
 
 		/** @type {{[nChr:number]:number[]}} */
 		this.centromere = {};
@@ -133,8 +152,10 @@ class Dataset {
 		/** @type {RibosomalDNA_Data} */
 		this.rDNA = new RibosomalDNA_Data();
 
+		// auto generate
+
 		/** @type {RibosomalDNA_Position_info} */
-		this.rDNA_info = new RibosomalDNA_Position_info();
+		this.rDNA_info = null;
 
 		// internal property
 
@@ -146,9 +167,9 @@ class Dataset {
 	}
 
 	/**
-	 * @type {"tetrad"|"SNP"}
+	 * @returns {"tetrad"|"SNP"}
 	 */
-	get mode() {
+	auto_detect_mode() {
 		if (this.parental_list.length == 2) {
 			if (this.progeny_list.length % 4 == 0) {
 				//Tetrad analysis
@@ -200,19 +221,20 @@ class Dataset {
 	 * @param {number} ref1_pos pos in bp
 	 */
 	getGCByPos(ref_name, nChr, ref1_pos) {
-		let row = this["GC content"][ref_name][nChr].find(a => ref1_pos >= a.start && ref1_pos <= a.end);
+		let row = this.gc_content[ref_name][nChr].find(a => ref1_pos >= a.start && ref1_pos <= a.end);
+		this.gc_content[ref_name][nChr][ref1_pos / this.GC_Content_window];
 		if (row) {
 			return row.gc;
 		}
 		else {
 			console.error({
-				"GC content file": this["GC content file"],
+				GC_Content_filePath: this.GC_Content_filePath,
 				ref_name, nChr, ref1_pos,
-				"s names": Object.keys(this["GC content"]),
-				"chr names": Object.keys(this["GC content"][ref_name]),
-				"rows.length": Object.keys(this["GC content"][ref_name][nChr].length),
-				"chr.rows.length": Object.keys(this["GC content"][ref_name]).map(chrName => this["GC content"][ref_name][chrName].length).join(","),
-				"max": this["GC content"][ref_name][nChr].sort((a, b) => b.end - a.end)[0],
+				"s names": Object.keys(this.gc_content),
+				"chr names": Object.keys(this.gc_content[ref_name]),
+				"rows.length": Object.keys(this.gc_content[ref_name][nChr].length),
+				"chr.rows.length": Object.keys(this.gc_content[ref_name]).map(chrName => this.gc_content[ref_name][chrName].length).join(","),
+				"max": this.gc_content[ref_name][nChr].sort((a, b) => b.end - a.end)[0],
 			});
 			//throw new Error("getGCByPos(ref_name, nChr, ref1_pos) {");
 		}
@@ -236,15 +258,14 @@ class Dataset {
 	}
 
 	loadGenomeInfoList() {
-		return this.genomeNameList.map(name => new GenomeInfo(name));
+		return this.genomeNameList.map(name => new GenomeInfo(this, name));
 	}
 
 	/**
 	 * @param {string} dataset_path
-	 * @param {LoadingFlags} flags
-	 * @returns {LoadedDataset}
+	 * @returns {Dataset}
 	 */
-	static loadFromFile(dataset_path, flags = null) {
+	static loadFromFile(dataset_path) {
 		if (!fs.existsSync(dataset_path)) {
 			console.error({
 				error: "No such file or directory",
@@ -256,23 +277,22 @@ class Dataset {
 		let obj = JSON.parse(fs.readFileSync(dataset_path).toString());
 		let dataset = Dataset.__fromObject(obj);
 
-		/** @type {LoadedDataset} */
+		/** @type {Dataset} */
 		// @ts-ignore
-		let loaded = dataset;
+		let loaded = new Proxy(dataset, {
+			get: function (target, propertyKey, receiver) {
+				let value = Reflect.get(target, propertyKey, receiver);
+				if (value === null || value === undefined) {
+					console.log(`dataset["${propertyKey.toString()}"] =>`, value);
+					debugger;
+				}
+				return value;
+			},
+		});
 		
-		if (flags && flags.gc_content) {
-			loaded["GC content"] = Dataset.__load_GC_content(dataset["GC content"]);
-		}
-		else {
-			console.warn(process.argv[1], "no loading:", "GC content");
-		}
+		//loaded.gc_content = Dataset.__load_GC_content(dataset.GC_Content_filePath);
 
-		if (flags && flags.ribosomal_dna) {
-			loaded.rDNA_info = Dataset.__load_rDNA_info_fromDataset(dataset_path);
-		}
-		else {
-			console.warn(process.argv[1], "no loading:", "rDNA_info");
-		}
+		//loaded.rDNA_info = Dataset.__load_rDNA_info_fromDataset(dataset_path);
 
 		loaded.genomeNameList = [].concat(loaded.parental_list, loaded.progeny_list);
 		
@@ -285,50 +305,38 @@ class Dataset {
 			loaded.genomeFileMap[name] = loaded.progeny[name];
 		});
 
+		Object.defineProperty(loaded, "$path", {
+			enumerable: false,
+			writable: false,
+			configurable: false,
+			value: dataset_path,
+		});
+
+		// @ts-ignore
+		if (globalThis.dataset instanceof Dataset) {
+			// @ts-ignore
+			console.warn("dataset loaded:", globalThis.dataset.$path);
+		}
+		Object.defineProperty(globalThis, "dataset", {
+			value: loaded,
+			configurable: true,
+		});
+
 		return loaded;
 	}
 	
-	/**
-	* @param {string} filename
-	* @returns {{[parentalName:string]:{[nChr:number]:GC_Content_Data[]}}}
-	*/
-	static __load_GC_content(filename) {
-		if (!fs.existsSync(filename)) {
-			return null;
-			// console.error({
-			// 	error: "No such file or directory",
-			// 	path: filename,
-			// 	absolute: Path.resolve(filename),
-			// });
-			// throw new Error("No such file or directory");
+	load_GC_content() {
+		if (fs.existsSync(this.GC_Content_filePath)) {
+			const text = fs.readFileSync(this.GC_Content_filePath).toString();
+			// @ts-ignore
+			let table = table_to_object_list(tsv_parse(text), ["name", "chr", "start", "end", "gc"]);
+			this.gc_content = parse_GC_Content_table(table);
 		}
-		const text = fs.readFileSync(filename).toString();
-		// @ts-ignore
-		let table = table_to_object_list(tsv_parse(text), ["name", "chr", "start", "end", "gc"]);
-		return parse_GC_Content_table(table);
 	}
 
-	/**
-	 * @param {string} dataset_path
-	 * @returns {RibosomalDNA_Position_info}
-	 */
-	static __load_rDNA_info_fromDataset(dataset_path) {
-		if (!fs.existsSync(dataset_path)) {
-			return null;
-			// console.error({
-			// 	error: "No such file or directory",
-			// 	path: dataset_path,
-			// 	absolute: Path.resolve(dataset_path),
-			// });
-			// throw new Error("No such file or directory");
-		}
-		let info_path = Path.join(Path.dirname(dataset_path), "output/rDNA_info.json");
-		if (fs.existsSync(info_path)) {
-			let data = JSON.parse(fs.readFileSync(info_path).toString());
-			return data;
-		}
-		else {
-			return null;
+	load_rDNA_info() {
+		if (fs.existsSync(`${dataset.output_path}/rDNA_info.json`)) {
+			this.rDNA_info = JSON.parse(fs.readFileSync(`${dataset.output_path}/rDNA_info.json`).toString());
 		}
 	}
 
@@ -343,19 +351,10 @@ class Dataset {
 	}
 }
 
-// @ts-ignore
-class LoadedDataset extends Dataset {
-	constructor() {
-		super();
-		
-		/** @type {{[parentalName:string]:{[nChr:number]:GC_Content_Data[]}}} */
-		this["GC content"] = {};
-	}
-}
+module.exports.MafftOptions = MafftOptions;
 
-
+module.exports.GenomeDataSet = GenomeDataSet;
 module.exports.Dataset = Dataset;
-module.exports.LoadedDataset = LoadedDataset;
 
 module.exports.GenomeInfo = GenomeInfo;
 

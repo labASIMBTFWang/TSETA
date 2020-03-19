@@ -166,7 +166,7 @@ function _execAsync(cmd, stdout_fname = null, stderr_fname = null) {
 		}
 		catch (ex) {
 			console.error("execAsync", ex);
-			//fs.writeFileSync("tmp/test.error.txt", JSON.stringify(ex, null, "\t"), { flag: "a" });
+			//fs.writeFileSync(`${dataset.tmp_path}/test.error.txt`, JSON.stringify(ex, null, "\t"), { flag: "a" });
 		}
 	});
 }
