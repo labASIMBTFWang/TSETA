@@ -3,7 +3,7 @@
 
 const fs = require("fs");
 
-const { argv_parse, loadChrLength, array_groupBy } = require("./util.js");
+const { argv_parse, array_groupBy } = require("./util.js");
 const { Dataset } = require("./dataset.js");
 const  { GC_Content_Data } = require("./GC_content_util.js");
 const  { parseFasta } = require("./fasta_util.js");
@@ -28,49 +28,61 @@ console.log({
 {
 	const argv_dataset_path = String(argv["-dataset"] || "");
 	const dataset = Dataset.loadFromFile(argv_dataset_path);
+	
+	const genome_info_list = dataset.loadGenomeInfoList();
 
 	const ref1_name = dataset.ref;
 	const ref2_name = dataset.parental_list[1];
+	
+	const gc_content_filepath = `${dataset.output_path}/${[ref1_name, ref2_name].join("_")}_GC_content.txt`;
+	const at_island_filepath = `${dataset.output_path}/${ref1_name}_AT_island.txt`;
 
-	const ref1_chr_list = loadChrLength(`output/${ref1_name}.length.txt`);
-	const ref2_chr_list = loadChrLength(`output/${ref2_name}.length.txt`);
+	const ref1_chr_list = genome_info_list[0];
 
 	let { all_gc_table: ref1_all_gc_table, all_island_table: ref1_all_island_table } = make_table(dataset.parental[ref1_name], ref1_name);
-	let { all_gc_table: ref2_all_gc_table, all_island_table: ref2_all_island_table } = make_table(dataset.parental[ref2_name], ref2_name);
-
-	{
-		ref1_all_gc_table.forEach(group => {
+	
+	let ref2_all_gc_table = null;
+	if (ref2_name) {
+		const ref2_chr_list = genome_info_list[1];
+		let { all_gc_table: _ref2_all_gc_table, all_island_table: _ref2_all_island_table } = make_table(dataset.parental[ref2_name], ref2_name);
+		
+		_ref2_all_gc_table.forEach(group => {
 			group.forEach(gc => {
-				const ref1_chr_info = ref1_chr_list.map[gc.chr];
-				gc.name = ref1_name;
-				gc.chr = ref1_chr_info.index;
-				gc.start = gc.start + 1;
-				gc.end = Math.min(gc.end + 1, ref1_chr_info.length);
-			});
-		});
-		ref2_all_gc_table.forEach(group => {
-			group.forEach(gc => {
-				const ref2_chr_info = ref2_chr_list.map[gc.chr];
+				const ref2_chr_info = ref2_chr_list.chr_map[gc.chr];
 				gc.name = ref2_name;
 				gc.chr = ref2_chr_info.index;
 				gc.start = gc.start + 1;
 				gc.end = Math.min(gc.end + 1, ref2_chr_info.length);
 			});
 		});
+
+		ref2_all_gc_table = _ref2_all_gc_table;
+	}
+
+	{
+		ref1_all_gc_table.forEach(group => {
+			group.forEach(gc => {
+				const ref1_chr_info = ref1_chr_list.chr_map[gc.chr];
+				gc.name = ref1_name;
+				gc.chr = ref1_chr_info.index;
+				gc.start = gc.start + 1;
+				gc.end = Math.min(gc.end + 1, ref1_chr_info.length);
+			});
+		});
 		
 		const output_gc_table_header = [
 			"name", "chr", "start", "end", "gc"
 		];
-		let all_gc_list = [].concat(...ref1_all_gc_table, ...ref2_all_gc_table);
+		let all_gc_list = ref2_all_gc_table ? [].concat(...ref1_all_gc_table, ...ref2_all_gc_table) : [].concat(...ref1_all_gc_table);
 		let text_all_gc_list = all_gc_list.map(row => output_gc_table_header.map(key => row[key]).join("\t")).join("\n");
 
-		fs.writeFileSync(`${ref1_name}_${ref2_name}_GC_content.txt`, text_all_gc_list);
+		fs.writeFileSync(gc_content_filepath, text_all_gc_list);
 	}
 
 	{
 		ref1_all_island_table.forEach(group => {
 			group.forEach(island => {
-				island.chr = ref1_chr_list.map[island.chr].index;
+				island.chr = ref1_chr_list.chr_map[island.chr].index;
 				island.start = island.start + 1;
 				island.end = island.end + 1;
 			});
@@ -82,21 +94,21 @@ console.log({
 		let all_island_list = [].concat(...ref1_all_island_table);
 		let text_all_island_list = all_island_list.map(row => output_at_table_header.map(key => row[key]).join("\t")).join("\n");
 		
-		fs.writeFileSync(`${ref1_name}_AT_island.txt`, text_all_island_list);
+		fs.writeFileSync(at_island_filepath, text_all_island_list);
 	}
 
 	{
 		let ref1_cen = [];
 		let ref1_tel = [];
 		
-		for (let nChr = 1; nChr <= dataset.chrNames.length; ++nChr) {
+		for (let nChr = 1; nChr <= genome_info_list[0].chr_list.length; ++nChr) {
 			const chrIdx = nChr - 1;
 			const AT_desc_list = [...ref1_all_island_table[chrIdx]].sort((a, b) => b.length - a.length);
 			
 			const cen_range = AT_desc_list[0];
 			{
 				let [at1, at2] = [AT_desc_list[0], AT_desc_list[1]].sort((a, b) => a.start - b.start);
-				console.log("ch", nChr, "at1, 500bp, at2", at1.start, at1.end, at2.start, at2.end);
+				//console.log("ch", nChr, "at1, 500bp, at2", at1.start, at1.end, at2.start, at2.end);
 				// 合併 2 個鄰近的 AT island，2 個 AT island 間最多能有 1 個 window (QM6a ChIV: 1482500-1559500,1560000-1659000)
 				if ((at2.start - at1.end) <= Math.abs(at1.end - at1.start)) {
 					cen_range.start = at1.start;
@@ -113,24 +125,44 @@ console.log({
 			});
 			
 			let tel2 = Object.assign({}, ref1_all_island_table[chrIdx][ref1_all_island_table[chrIdx].length - 1], {
-				end: ref1_chr_list.list[ref1_all_island_table[chrIdx][ref1_all_island_table[chrIdx].length - 1].chr - 1].length,
+				end: ref1_chr_list.chr_list[ref1_all_island_table[chrIdx][ref1_all_island_table[chrIdx].length - 1].chr - 1].length,
 			});
 
 			ref1_tel.push([tel1, tel2]);
 		}
 
-		{
-			const text_cent = ref1_cen.map(a => [a.chr, a.start, a.end].join("\t")).join("\n");
-			fs.writeFileSync(`output/${ref1_name}_centromere.txt`, text_cent);
-			console.log("cen", text_cent);
-		}
+		// {
+		// 	const text_cent = ref1_cen.map(a => [a.chr, a.start, a.end].join("\t")).join("\n");
+		// 	fs.writeFileSync(`${dataset.output_path}/${ref1_name}_centromere.txt`, text_cent);
+		// 	console.log("cen", text_cent);
+		// }
 		
-		{
-			const text_tel = ref1_tel.map(([a, b]) => [a.chr, a.start, a.end, b.start, b.end].join("\t")).join("\n");
-			fs.writeFileSync(`output/${ref1_name}_telomere.txt`, text_tel);
-			console.log("tel", text_tel);
-		}
+		// {
+		// 	const text_tel = ref1_tel.map(([a, b]) => [a.chr, a.start, a.end, b.start, b.end].join("\t")).join("\n");
+		// 	fs.writeFileSync(`${dataset.output_path}/${ref1_name}_telomere.txt`, text_tel);
+		// 	console.log("tel", text_tel);
+		// }
+
+		ref1_cen.forEach(a => {
+			dataset.centromere[a.chr] = [a.start, a.end];
+		});
+		ref1_tel.forEach(([a, b]) => {
+			dataset.telomere[a.chr] = [
+				[a.start, a.end],
+				[b.start, b.end],
+			];
+		});
 	}
+
+	dataset.GC_Content_filePath = gc_content_filepath;
+	dataset.GC_Content_window = argv_window_size;
+
+	const output_dataset = JSON.stringify(dataset, null, "\t");
+
+	console.log(`updated: ${argv_dataset_path}`);
+	fs.writeFileSync(argv_dataset_path, output_dataset);
+	
+	console.log("next command:", `node ./src/slice_all.js -dataset ${argv_dataset_path}`);
 }
 
 class AT_island_Data {
@@ -241,7 +273,7 @@ function make_table(input_filename, output_prifix) {
 	// 	];
 	// 	let all_gc_list = [].concat(...all_gc_table);
 	// 	let text_all_gc_list = all_gc_list.map(row => output_gc_table_header.map(key => row[key]).join("\t")).join("\n");
-	// 	fs.writeFileSync(`output/${output_prifix}_GC_content.txt`, text_all_gc_list);
+	// 	fs.writeFileSync(`${dataset.output_path}/${output_prifix}_GC_content.txt`, text_all_gc_list);
 	// }
 
 	function merge_island() {
@@ -278,7 +310,7 @@ function make_table(input_filename, output_prifix) {
 	// 	];
 	// 	let all_island_list = [].concat(...all_island_table);
 	// 	let text_all_island_list = all_island_list.map(row => output_at_table_header.map(key => row[key]).join("\t")).join("\n");
-	// 	//fs.writeFileSync(`output/${output_prifix}_AT_island.txt`, text_all_island_list);
+	// 	//fs.writeFileSync(`${dataset.output_path}/${output_prifix}_AT_island.txt`, text_all_island_list);
 	// }
 
 	return {

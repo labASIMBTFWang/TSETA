@@ -1,11 +1,11 @@
 // @ts-check
 
 let dataset = JSON.parse(document.getElementById("dataset.json").innerText);
+dataset._gc_content = JSON.parse(JSON.stringify(dataset.gc_content));//deep clone plain data
 
-let seq_list = [
-	"", "",
-	"", "", "", "",
-];
+/** @type {string[]} */
+let seq_id_list = [];
+let seq_list = [""];
 
 class GC_Content {
 	constructor() {
@@ -21,55 +21,10 @@ let gc_content = {};
 /** @type {{[name:string]:{[chr:string]:number}}} */
 let gc_content_average = {};
 
-// @ts-ignore
-window.get_r1a = function(start, end) {
-	let ref1_pos = 1;
-	let ra = seq_list.map(_ => "");
-
-	[...seq_list[0]].forEach((ref1, pos) => {
-		if (start <= ref1_pos && ref1_pos <= end) {
-			for (let i = 0; i < seq_list.length; ++i) {
-				ra[i] += seq_list[i][pos];
-			}
-		}
-		if (ref1 != "-") {
-			++ref1_pos;
-		}
-	});
-	console.log(ra);
-};
-
-// @ts-ignore
-window.get_ma = function(start, end) {
-	for (let i = 0; i < seq_list.length; ++i) {
-		console.log(seq_list[i].slice(start, end));
-	}
-};
-
-{
-	let el_markers_table = document.getElementById("markers_table");
-	//let el_display_buttons_group = document.getElementById("display_buttons_group");
-
-	MAKER_NAME.forEach(name => {
-		appendMakerstable(name);
-	});
-	function appendMakerstable(name) {
-		let elem = document.createElement("div");
-		elem.classList.add("makers");
-		elem.innerHTML = `<span>${name}</span>`;
-		el_markers_table.append(elem);
-	}
-	// function appendDisplayButton() {
-	// 	let elem = document.createElement("label");
-	// 	elem.innerHTML = `<input type="checkbox" id="el_display_31" checked /> display ${name}`;
-	// 	el_display_buttons_group.append(elem);
-	// }
-}
-
 let el_display_bp_pos = document.getElementById("el_display_bp_pos");
 let el_display_ref1_bp_pos = document.getElementById("el_display_ref1_bp_pos");
 let el_display_ref2_bp_pos = document.getElementById("el_display_ref2_bp_pos");
-let el_display_ref1_ref2_score = document.getElementById("el_display_ref1_ref2_score");
+let el_gc_content_window_size = document.getElementById("el_gc_content_window_size");
 
 /** @type {HTMLInputElement} */
 // @ts-ignore
@@ -118,16 +73,24 @@ class ViewerState {
 	_display_40 = true;
 
 	/** @type {boolean} */
-	_display_22indel = true;
+	_display_2n2 = true;
 	/** @type {boolean} */
-	_display_13indel = true;
+	_display_1n3 = true;
 	/** @type {boolean} */
-	_display_31indel = true;
+	_display_3n1 = true;
 	/** @type {boolean} */
-	_display_40indel = true;
+	_display_4n0 = true;
+
+	/** @type {boolean} */
+	_display_rip = true;
 
 	/** @type {boolean} */
 	_display_illegitimate_mutation = true;
+
+	/** @type {boolean} */
+	_display_snp = true;
+	/** @type {boolean} */
+	_display_snv = true;
 
 	/** @type {number} */
 	_nChr = 1;
@@ -159,12 +122,10 @@ class ViewerState {
 
 	_display_rdna_border = false;
 
-	constructor() {
-		this.seg_row_height = 32;
-		this.seg_row_separate = 5;
+	seg_row_height = 32;
+	seg_row_separate = 5;
 
-		this.fill_prev_color = true;
-	}
+	fill_prev_color = true;
 
 	get_plot_height() {
 		let { seg_row_height, seg_row_separate } = this;
@@ -174,7 +135,7 @@ class ViewerState {
 
 		height += (seg_row_height + seg_row_separate) * 1;//CO maker
 
-		height += (seg_row_height + seg_row_separate) * spore_cmp_array.length;//nco makers
+		height += (seg_row_height + seg_row_separate) * allMarker.list.length;//nco makers
 
 		height += (seg_row_height * 2 + seg_row_separate) * 2;//GC%
 
@@ -221,9 +182,14 @@ class ViewerState {
 	}
 
 	get max_view_width() {
-		let all_scale = seq_list[0].length / viewerState.max_length;
-		let max_view_width = canvas.clientWidth * all_scale;
-		return max_view_width - this._padding_right;
+		if (seq_list[0]) {
+			let all_scale = seq_list[0].length / viewerState.max_length;
+			let max_view_width = canvas.clientWidth * all_scale;
+			return max_view_width - this._padding_right;
+		}
+		else {
+			return 0;
+		}
 	}
 
 	get display_rdna_border() {
@@ -236,12 +202,12 @@ class ViewerState {
 		}
 	}
 	
-	get display_22indel() {
-		return this._display_22indel;
+	get display_2n2() {
+		return this._display_2n2;
 	}
-	set display_22indel(value) {
-		if (this._display_22indel != value) {
-			this._display_22indel = value;
+	set display_2n2(value) {
+		if (this._display_2n2 != value) {
+			this._display_2n2 = value;
 			drawFrame();
 		}
 	}
@@ -265,22 +231,22 @@ class ViewerState {
 		}
 	}
 	
-	get display_13indel() {
-		return this._display_13indel;
+	get display_1n3() {
+		return this._display_1n3;
 	}
-	set display_13indel(value) {
-		if (this._display_13indel != value) {
-			this._display_13indel = value;
+	set display_1n3(value) {
+		if (this._display_1n3 != value) {
+			this._display_1n3 = value;
 			drawFrame();
 		}
 	}
 	
-	get display_31indel() {
-		return this._display_31indel;
+	get display_3n1() {
+		return this._display_3n1;
 	}
-	set display_31indel(value) {
-		if (this._display_31indel != value) {
-			this._display_31indel = value;
+	set display_3n1(value) {
+		if (this._display_3n1 != value) {
+			this._display_3n1 = value;
 			drawFrame();
 		}
 	}
@@ -305,12 +271,19 @@ class ViewerState {
 		}
 	}
 
-	get display_40indel() {
-		return this._display_40indel;
+	get display_rip() {
+		return this._display_rip;
 	}
-	set display_40indel(value) {
-		if (this._display_40indel != value) {
-			this._display_40indel = value;
+	set display_rip(value) {
+		this._display_rip = value;
+	}
+
+	get display_4n0() {
+		return this._display_4n0;
+	}
+	set display_4n0(value) {
+		if (this._display_4n0 != value) {
+			this._display_4n0 = value;
 			drawFrame();
 		}
 	}
@@ -321,6 +294,26 @@ class ViewerState {
 	set display_illegitimate_mutation(value) {
 		if (this._display_illegitimate_mutation != value) {
 			this._display_illegitimate_mutation = value;
+			drawFrame();
+		}
+	}
+
+	get display_snv() {
+		return this._display_snv;
+	}
+	set display_snv(value) {
+		if (this._display_snv != value) {
+			this._display_snv = value;
+			drawFrame();
+		}
+	}
+
+	get display_snp() {
+		return this._display_snp;
+	}
+	set display_snp(value) {
+		if (this._display_snp != value) {
+			this._display_snp = value;
 			drawFrame();
 		}
 	}
@@ -421,12 +414,131 @@ const viewerState = new ViewerState();
 // @ts-ignore
 window.viewerState = viewerState;
 
-const analyser_options = {
+const $color_set_print = {
+	"dad_bk": "#00FFFF",
+	"dad": "#00FFFF",
+	//"dad": "#0000FF",
+	
+	"mom_bk": "#FF90CB",
+	"mom": "#FF90CB",
+	//"mom": "#FF0000",
+
+	"identical": "#FFFFFF",
+	"deletion": "#FFFFFF",
+
+	"rip": "#000000",//darkgray (more dark)
+
+	"co": "#FF0000",
+
+	// "31": "#0000FF",
+	// "40": "#00FF00",
+	// "2n2": "#FFA500",
+	// "3n1": "#9400d3",//darkviolet
+	// "4n0": "#A0A0A0",
+
+	//45, 90, 135, 180, 225, 270, 315
+	"31": "hsl(60, 90%, 40%)",
+	"40": "hsl(120, 90%, 40%)",
+	"1n3": "hsl(190, 90%, 40%)",
+	"2n2": "hsl(250, 90%, 40%)",
+	"3n1": "hsl(280, 90%, 50%)",
+	"4n0": "hsl(0, 0%, 60%)",
+
+	"illegitimate_mutation": "#FF9800",
+
+	"diff": "#EEEEEE",
+
+	//
+
+	"rDNA": "#FF0000",
+
+	"snp": "gray",
+	"snv": "green",
+};
+
+const $color_set_view = Object.assign({}, $color_set_print, {
+	"rip": "#00ff00",
+});
+
+let current_colorset = $color_set_print;
+
+const args_colors = {
+	get [ColorID.dad]() { return current_colorset["dad"]; },		// 0
+	get [ColorID.mom]() { return current_colorset["mom"]; },		// 1
+	get [ColorID.identical]() { return current_colorset["identical"]; },	// 2 id
+	get [ColorID.dad_rip]() { return current_colorset["rip"]; },		// 3 ref1 RIP
+	get [ColorID.mom_rip]() { return current_colorset["rip"]; },		// 4 ref2 RIP
+	get [ColorID.diff]() { return current_colorset["diff"]; },		// 5 diff
+	get [ColorID.none]() { return "#FFFFFF"; },	// 8 none
+};
+
+const analysis_options = {
+	get mode() { return dataset.mode; },
 	get nChr() { return viewerState.nChr },
 	get rDNA_info() { return dataset.rDNA_info; },
-	get co_list() { return dataset.crossover_list[viewerState.nChr - 1]; },
-	get fill_prev_color() { return true; },
+	get co_list() { return dataset.crossover_list ? dataset.crossover_list[viewerState.nChr - 1] : null; },
+	get fill_prev_color() { return viewerState.fill_prev_color; },
+
+	//get ignore_rDNA() { return true; },
 };
+initAnalyser(analysis_options);
+{
+	if (analysis_options.mode == "tetrad") {
+		document.querySelectorAll("[data-mode=snp-mode]").forEach(elem => elem.style.display = "none");
+		document.querySelectorAll("[data-mode=tetrad-mode]").forEach(elem => elem.style.display = "block");
+	}
+	else {
+		document.querySelectorAll("[data-mode=snp-mode]").forEach(elem => elem.style.display = "block");
+		document.querySelectorAll("[data-mode=tetrad-mode]").forEach(elem => elem.style.display = "none");
+
+		if (dataset.progeny_list.length > 1) {
+			for (let i = 1; i <= dataset.progeny_list; ++i) {
+				let elem_div = document.createElement("div");
+				elem_div.outerHTML = `<div class="makers"><span style="vertical-align: center;">Subject ${i}</div>`;
+				document.getElementById("snp-mode-rows").append(elem_div);
+			}
+		}
+	}
+
+	let el_markers_table = document.getElementById("markers_table");
+	let el_display_buttons_group = document.getElementById("display_buttons_group");
+
+	el_display_buttons_group.innerHTML = "";//clear
+
+	// no display 2:2 SNV
+	allMarker.list.slice(1).forEach(marker => {
+		appendMakerstable(marker);
+		appendDisplayButton(marker);
+	});
+	function appendMakerstable(marker) {
+		let elem_div = document.createElement("div");
+		elem_div.classList.add("makers");
+		elem_div.innerHTML = `<span>${marker.name}</span>`;
+		el_markers_table.append(elem_div);
+	}
+	function appendDisplayButton(marker) {
+		let elem_label = document.createElement("label");
+		
+		let elem_input = document.createElement("input");
+		elem_input.type = "checkbox";
+		elem_input.id = `el_display_${marker.property}`;
+		elem_input.checked = viewerState["display_" + marker.property];
+		elem_input.onchange = function (evt) {
+			// @ts-ignore
+			viewerState["display_" + marker.property] = evt.target.checked;
+		};
+		
+		elem_label.append(elem_input);
+		elem_label.append(document.createTextNode(` display ${marker.name}`));
+
+		el_display_buttons_group.append(elem_label);
+	}
+}
+
+if (analysis_options.mode != "tetrad") {
+	viewerState.fill_prev_color = false;
+	viewerState._crossover_only = false;
+}
 
 /** @type {HTMLSelectElement} */
 // @ts-ignore
@@ -454,23 +566,7 @@ function onChangeColorSet(evt, colorset_name) {
 	/** @type {HTMLSelectElement} */
 	
 	el_select_colorset.onchange = (evt) => onChangeColorSet(evt);
-	el_select_colorset.onchange(null);
-
-	{
-		marker_order.forEach(label => {
-			/** @type {HTMLInputElement} */
-			// @ts-ignore
-			let el_display_ = document.getElementById("el_display_" + label);
-			if (el_display_) {
-				// @ts-ignore
-				el_display_.onchange = (evt) => viewerState["display_" + label] = evt.target.checked;
-				el_display_.checked = viewerState["display_" + label];
-			}
-			else {
-				console.log("el_display_" + label);
-			}
-		});
-	}
+	el_select_colorset.onchange(null);//init
 	
 	let el_input_chr = document.getElementById("el_input_chr");
 	// @ts-ignore
@@ -496,13 +592,14 @@ function onChangeColorSet(evt, colorset_name) {
 	el_input_disable_max_length.oninput = (evt) => viewerState.disable_max_length = !evt.target.checked;
 	viewerState.disable_max_length = viewerState._disable_max_length;
 
-
 	let el_input_rip_display_weight = document.getElementById("el_input_rip_display_weight");
-	// @ts-ignore
-	el_input_rip_display_weight.value = viewerState._rip_display_weight;
-	// @ts-ignore
-	el_input_rip_display_weight.oninput = (evt) => viewerState.rip_display_weight = Number(evt.target.value);
-	viewerState.rip_display_weight = viewerState._rip_display_weight;
+	if (el_input_rip_display_weight) {
+		// @ts-ignore
+		el_input_rip_display_weight.value = viewerState._rip_display_weight;
+		// @ts-ignore
+		el_input_rip_display_weight.oninput = (evt) => viewerState.rip_display_weight = Number(evt.target.value);
+		viewerState.rip_display_weight = viewerState._rip_display_weight;
+	}
 }
 
 function set_ui_seq_pos(pageX) {
@@ -516,18 +613,12 @@ function set_ui_seq_pos(pageX) {
 			el_display_ref1_bp_pos.innerText = ref1_pos.toString();
 		}
 	}
+
 	
-	if (pos_ref2_uint32array) {
+	if (pos_ref2_uint32array && el_display_ref2_bp_pos) {
 		let ref2_pos = pos_ref2_uint32array[mouse_bp_pos - 1];
 		if (ref2_pos != null) {
 			el_display_ref2_bp_pos.innerText = ref2_pos.toString();
-		}
-	}
-
-	if (ref1_ref2_score_uint32array) {
-		let score = ref1_ref2_score_uint32array[mouse_bp_pos - 1];
-		if (score != null) {
-			el_display_ref1_ref2_score.innerText = score.toString();
 		}
 	}
 }
@@ -666,9 +757,53 @@ function set_view_range(start, end) {
 			
 			el_input_start.value = bp_start.toString();
 			el_input_end.value = bp_end.toString();
-		
+
+			merge_gc_content();
+			
 			drawFrame();
 		}
+	}
+}
+
+/**
+ * @param {number} merge_size
+ * @param {boolean} [refresh]
+ */
+function merge_gc_content(merge_size, refresh = false) {
+	//seq_list[0].length
+	if (merge_size == null) {
+		merge_size = Math.ceil(((bp_end - bp_start + 1) / dataset.GC_Content_window) / viewerState.max_view_width);
+	}
+
+	if (merge_size < 1) {
+		return;
+	}
+
+	for (let refName of dataset.parental_list) {
+		let n_l = [];
+		for (let i = 0; i < dataset._gc_content[refName][viewerState.nChr].length; i += merge_size) {
+			let td = { ...dataset._gc_content[refName][viewerState.nChr][i] };//{ chr: 6, start: 1, end: 500, gc: 0 };
+			let j = 1;
+			for (; j < merge_size; ++j) {
+				let t = dataset._gc_content[refName][viewerState.nChr][i + j];
+				if (!t) {
+					break;
+				}
+				td.end = t.end;
+				td.gc += t.gc;
+			}
+			td.gc /= j;
+			n_l.push(td);
+		}
+		dataset.gc_content[refName][viewerState.nChr] = n_l;
+	}
+
+	if (el_gc_content_window_size != merge_size) {
+		el_gc_content_window_size.value = merge_size;//new window size
+	}
+	
+	if (refresh) {
+		drawFrame();
 	}
 }
 
@@ -714,7 +849,7 @@ async function loadData() {
 	})();
 
 	{
-		let name_map = dataset["GC content"];
+		let name_map = dataset.gc_content;
 		
 		let average = {};
 		Object.keys(name_map).forEach(name => {
@@ -794,14 +929,28 @@ async function loadData() {
 	canvas.height = viewerState.get_plot_height();
 	canvas.style.height = viewerState.get_plot_height() + "px";
 
-	calc_seg_reg(seq_list, analyser_options);
-	
+	// if (analyser_mode == "tetrad") {
+		loadCmpData(seq_list, analysis_options);
+	// }
+	// else {
+	// 	for (let i = 0; i < seq_list[0].length; i += 500) {
+	// 		const column_d = Array(seq_list.length).fill(0);
+	// 		for (let j = 0; j < 500; ++j) {
+	// 			const idx = i + j; 
+	// 			const column = seq_list.map(seq => seq[idx]);
+	// 			const ref_value = column[0];
+	// 			let cmp = column.map(value => value == ref_value ? 0 : 1);
+	// 			column_d.forEach((d, i) => column_d[i] += cmp[i]);
+	// 		}
+	// 	}
+	// }
+
 	// // @ts-ignore
 	// window.$seg = seg_snp;//no save
 	// @ts-ignore
 	//window.parental_cmp = parental_cmp_uint8array;
 	// @ts-ignore
-	window.spore_cmp_array = spore_cmp_array;
+	window.allMarker = allMarker;
 	// @ts-ignore
 	window.ref1_pos_uint32array = ref1_pos_uint32array;
 	// @ts-ignore
@@ -810,8 +959,6 @@ async function loadData() {
 	window.ref2_pos_uint32array = ref2_pos_uint32array;
 	// @ts-ignore
 	window.pos_ref2_uint32array = pos_ref2_uint32array;
-	// @ts-ignore
-	window.ref1_ref2_score_uint32array = ref1_ref2_score_uint32array;
 
 	//max length
 	bp_end = Math.min(bp_end, seq_list[0].length);
@@ -825,6 +972,25 @@ async function loadData() {
 	el_input_end.value = bp_end.toString();
 	g_maxPixelPerBP = getPixelPerBP();
 
+	{
+		el_gc_content_window_size.innerHTML = "";//clear
+
+		let max_merge_size = Math.ceil((seq_list[0].length / dataset.GC_Content_window) / viewerState.max_view_width);
+		for (let i = 1; i <= max_merge_size; ++i) {
+			let opt = document.createElement("option");
+			let value = (i * dataset.GC_Content_window).toFixed(0);
+			opt.innerText = value;
+			opt.value = i;
+			el_gc_content_window_size.append(opt);
+		}
+
+		el_gc_content_window_size.onchange = function (evt) {
+			merge_gc_content(Number(el_gc_content_window_size.value), true);
+		};
+
+		merge_gc_content();
+	}
+
 	drawFrame();
 }
 
@@ -834,6 +1000,8 @@ document.getElementById("el_show_all").onclick = function show_all() {
 	el_input_start.value = bp_start.toString();
 	el_input_end.value = bp_end.toString();
 
+	merge_gc_content();
+
 	drawFrame();
 }
 
@@ -841,7 +1009,12 @@ function drawFrame() {
 	if (!viewerState.animationFrameId) {
 		viewerState.animationFrameId = requestAnimationFrame(async function (time) {
 			try {
-				render(analyser_options);
+				//if (analyser_mode == "tetrad") {
+					render_tetrad(analysis_options);
+				//}
+				//else {
+				//	render_SNP(analysis_options);
+				//}
 			}
 			catch (ex) {
 				console.error(ex);
@@ -857,13 +1030,13 @@ function drawFrame() {
 
 //[].map();
 /**
- * @param {AnalyserOptions} options
+ * @param {AnalysisOptions} options
  */
-function render(options) {
+function render_tetrad(options) {
 	if (!seq_list[0].length) {
 		return;
 	}
-	_render(options);
+	_render_tetrad(options);
 
 	let v_scale = getPixelPerBP() / g_maxPixelPerBP;
 
@@ -878,9 +1051,9 @@ function render(options) {
 
 //ctx.canvas.width / (bp_end - bp_start + 1)
 /**
- * @param {AnalyserOptions} options
+ * @param {AnalysisOptions} options
  */
-function _render(options) {
+function _render_tetrad(options) {
 	let max_view_width = viewerState.max_view_width;
 
 	const scale = 1 / (bp_end - bp_start + 1);
@@ -1259,7 +1432,7 @@ function _render(options) {
 		}
 	}
 
-	if (options.rDNA_info.chr == viewerState.nChr) {
+	if (options.rDNA_info && options.rDNA_info.chr == viewerState.nChr) {
 		let min_len_rDNA = Math.min(...options.rDNA_info.data.map(d => {
 			return Math.min(...d.repeats.map((a, b) => Math.abs(a[1] - a[0])));
 		}));
@@ -1281,7 +1454,7 @@ function _render(options) {
 					let raw_start = Math.min(...ar_data);
 					let raw_len = Math.abs(ar_data[1] - ar_data[0]);
 
-					let strand = ar_data[1] < ar_data[0] ? -1 : 0;
+					let strand = ar_data[1] < ar_data[0] ? -1 : 1;
 
 					let x1 = ((1 - bp_start) + raw_start) * bp_size;
 					let x2 = ((1 - bp_start) + raw_start + raw_len - 1) * bp_size;
@@ -1347,7 +1520,7 @@ function _render(options) {
 	ctx.lineWidth = 1;
 	ctx.translate(0.5, 0.5);
 
-	ctx.translate(0, 6 * (seg_row_height + seg_row_separate));
+	ctx.translate(0, seq_list.length * (seg_row_height + seg_row_separate));
 
 	// user input maker
 	{
@@ -1373,59 +1546,56 @@ function _render(options) {
 	}
 
 	// crossover
+	if (dataset.crossover_list) {
+		dataset.crossover_list[viewerState.nChr - 1].forEach(co_data => {
+			if (co_data.chr == viewerState.nChr) {
+				let x1 = ((1 - bp_start) + ref1_pos_uint32array[co_data.snp_start_out]) * bp_size;
+				let x2 = ((1 - bp_start) + ref1_pos_uint32array[co_data.snp_start_in]) * bp_size;
+				let x3 = ((1 - bp_start) + ref1_pos_uint32array[co_data.snp_end_in]) * bp_size;
+				let x4 = ((1 - bp_start) + ref1_pos_uint32array[co_data.snp_end_out]) * bp_size;
 
-	dataset.crossover_list[viewerState.nChr - 1].forEach(co_data => {
-		if (co_data.chr == viewerState.nChr) {
-			let x1 = ((1 - bp_start) + ref1_pos_uint32array[co_data.snp_start_out]) * bp_size;
-			let x2 = ((1 - bp_start) + ref1_pos_uint32array[co_data.snp_start_in]) * bp_size;
-			let x3 = ((1 - bp_start) + ref1_pos_uint32array[co_data.snp_end_in]) * bp_size;
-			let x4 = ((1 - bp_start) + ref1_pos_uint32array[co_data.snp_end_out]) * bp_size;
+				let in_length = x3 - x2;
+				let out_length = x4 - x1;
 
-			let in_length = x3 - x2;
-			let out_length = x4 - x1;
-
-			if (out_length < 5) {
-				let cx = (x4 + x1) / 2;
-				let ll = 5;
-				ctx.fillStyle = "#FF0000";
-				ctx.fillRect(cx - ll / 2, 0, ll, seg_row_height);
+				if (out_length < 5) {
+					let cx = (x4 + x1) / 2;
+					let ll = 5;
+					ctx.fillStyle = "#FF0000";
+					ctx.fillRect(cx - ll / 2, 0, ll, seg_row_height);
+				}
+				else {
+					ctx.fillStyle = "#FF0000CF";
+					ctx.fillRect(x1, 0, out_length, seg_row_height);
+					ctx.fillStyle = "#FF0000";
+					ctx.fillRect(x2, 0, in_length, seg_row_height);
+				}
 			}
-			else {
-				ctx.fillStyle = "#FF0000CF";
-				ctx.fillRect(x1, 0, out_length, seg_row_height);
-				ctx.fillStyle = "#FF0000";
-				ctx.fillRect(x2, 0, in_length, seg_row_height);
-			}
-		}
-	});
+		});
 
-	ctx.translate(0, 1 * (seg_row_height + seg_row_separate));
+		ctx.translate(0, 1 * (seg_row_height + seg_row_separate));
+	}
 
 	// pre-defined maker
 
-	let maker_display_flag = [
-		viewerState.display_31, viewerState.display_40,
-		viewerState.display_13indel, viewerState.display_22indel, viewerState.display_31indel, viewerState.display_40indel,
-		true, viewerState.display_illegitimate_mutation,
-	];
+	let marker_h_width = (viewerState.marker_width || 2) / 2;
 
 	// no display 2:2 SNV
-	for (let marker_idx = 1; marker_idx < spore_cmp_array.length; ++marker_idx) {
-		let order = marker_idx - 1;
+	for (let marker_idx = 1; marker_idx < allMarker.list.length; ++marker_idx) {
+		let order = marker_idx;
 		
-		if (maker_display_flag[order]) {
-			for (let i = 0; i < spore_cmp_array[marker_idx].length; ++i) {
-				let { pos, value } = spore_cmp_array[marker_idx][i];
+		if (viewerState[`display_${allMarker.list[marker_idx].property}`]) {
+			for (let i = 0; i < allMarker.list[marker_idx].values.length; ++i) {
+				let { pos, value } = allMarker.list[marker_idx].values[i];
 				let cx = ((1 - bp_start) + pos) * bp_size;
 				//let cx = ((1 - bp_start) + pos) * bp_size;
-				let x1 = cx - 1;
-				let x2 = cx + 1;
-				if (!(x2 >= 0 && x1 <= max_view_width)) {
+				let x1 = cx - marker_h_width;
+				let _x2 = cx + marker_h_width;
+				if (!(_x2 >= 0 && x1 <= max_view_width)) {
 					continue;
 				}
-				let width = Math.min(x1 + Math.max(bp_size, x2 - x1), max_view_width) - x1;
+				let width = Math.min(x1 + Math.max(bp_size, _x2 - x1), max_view_width) - x1;
 
-				let col = marker_order[order];
+				let col = allMarker.list[order].property;
 				
 				if (col) {
 					ctx.fillStyle = current_colorset[col];
@@ -1439,21 +1609,23 @@ function _render(options) {
 
 	//begin GC%
 
-	if (viewerState.ref1 && viewerState.ref2 && viewerState.nChr) {
-		const dataset = [
+	if (viewerState.ref1 && viewerState.nChr) {
+		const ref_info_list = [
 			{
 				refName: viewerState.ref1,
 				ref_mapto_ma: ref1_pos_uint32array,
 			},
-			{
+		];
+		if (viewerState.ref2) {
+			ref_info_list.push({
 				refName: viewerState.ref2,
 				ref_mapto_ma: ref2_pos_uint32array,
-			}
-		];
+			});
+		}
 
 		const gc_max_height = seg_row_height * 2;
 
-		dataset.forEach(({ refName, ref_mapto_ma }, sid) => {
+		ref_info_list.forEach(({ refName, ref_mapto_ma }, sid) => {
 			const gc_list = gc_content[refName][viewerState.nChr];
 			if (!gc_list || gc_list.length <= 0) {
 				return;

@@ -12,7 +12,7 @@ console.log({
 const fs = require("fs");
 
 
-const { argv_parse, loadChrLength } = require("./util.js");
+const { argv_parse } = require("./util.js");
 const { tsv_parse, table_to_object_list } = require("./tsv_parser.js");
 const { Dataset } = require("./dataset.js");
 const { loadSegFile, SegRow } = require("./SegFile.js");
@@ -24,7 +24,10 @@ const argv_segfile = String(argv["--segfile"] || "");//mafft_QM6a_WT_1_Ch1_segfi
 const argv_output_prefix = String(argv["--output-prefix"] || "");
 
 const dataset = Dataset.loadFromFile(dataset_path);
+dataset.load_GC_content();
+dataset.load_rDNA_info();
 
+const genome_info_list = dataset.loadGenomeInfoList();
 
 class CrossoverAnalyser {
 	constructor() {
@@ -65,8 +68,8 @@ class CrossoverAnalyser {
 
 		if (this.co_list.length || this.nco_list.length) {
 			{
-				const file_co = `output/${argv_output_prefix}_co.txt`;
-				const file_nco = `output/${argv_output_prefix}_nco.txt`;
+				const file_co = `${dataset.output_path}/${argv_output_prefix}_co.txt`;
+				const file_nco = `${dataset.output_path}/${argv_output_prefix}_nco.txt`;
 				
 				//no tetrad
 
@@ -84,7 +87,7 @@ class CrossoverAnalyser {
 				console.log("file_nco", file_nco);
 			}
 			{
-				const file_co = `output/${argv_output_prefix}_co.json`;
+				const file_co = `${dataset.output_path}/${argv_output_prefix}_co.json`;
 				
 				let props = [
 					"chr", "chr_len", "pos", "co_type", "GCasso_tract_len", "GCasso_marker", "snp_start_out", "snp_start_in", "snp_end_in", "snp_end_out", "type", "why_remove", "before", "after"
@@ -100,7 +103,7 @@ class CrossoverAnalyser {
 				console.log("file_co", file_co);
 			}
 			// {
-			// 	const file_nco = `output/${argv_output_prefix}_nco.json`;
+			// 	const file_nco = `${dataset.output_path}/${argv_output_prefix}_nco.json`;
 			// 	fs.writeFileSync(file_nco, JSON.stringify(this.nco_list, null, "\t"));
 			// 	console.log("file_nco", file_nco);
 			// }
@@ -163,7 +166,7 @@ class CrossoverAnalyser {
 		}
 
 		{
-			const chrList = loadChrLength(`output/${dataset.ref}.length.txt`).list;
+			const chrList = genome_info_list[0].chr_list;
 			
 			this.chrMinLength = Infinity;
 			this.chrMaxLength = 0;

@@ -2,18 +2,33 @@
 
 const fs = require("fs");
 
-
-function saveFasta(path, fasta) {
+/**
+ * 
+ * @param {string} filename
+ * @param {{ [seqName:string]:string }} fasta
+ */
+function saveFasta(filename, fasta) {
 	let str = "";
 	Object.keys(fasta).forEach(key => {
-		str += "> ";
-		str += key;
-		str += "\n";
+		if (fasta[key] && fasta[key].length) {
+			str += "> ";
+			str += key;
+			str += "\n";
 
-		str += fasta[key];
-		str += "\n";
+			str += fasta[key];
+			str += "\n";
+		}
+		else {
+			console.warn("saveFasta:", key, "=>", fasta[key]);
+		}
 	});
-	fs.writeFileSync(path, str);
+	try {
+		fs.writeFileSync(filename, str);
+	}
+	catch (ex) {
+		console.error("write file error:", filename);
+		throw ex;
+	}
 }
 
 /**
@@ -21,8 +36,14 @@ function saveFasta(path, fasta) {
  * @returns {{[chr:string]:string}}
  */
 function readFasta(filename) {
-	let text = fs.readFileSync(filename).toString();
-	return parseFasta(text);
+	try {
+		let text = fs.readFileSync(filename).toString();
+		return parseFasta(text);
+	}
+	catch (ex) {
+		console.error("read file error:", filename);
+		throw ex;
+	}
 }
 
 /**
@@ -74,10 +95,11 @@ function save_fasta_async(path, fasta) {
 
 
 /**
- * 
- * @param {{[chr:string]:string}[]} fasta_list 
+ * @param {{[chr:string]:string}[]} fasta_list
+ * @returns {{[chr:string]:string}}
  */
 function joinFastaSeq(fasta_list) {
+	/** @type {{[chr:string]:string}} */
 	let out = {};
 	Object.keys(fasta_list[0]).forEach(k => {
 		if (!out[k]) {

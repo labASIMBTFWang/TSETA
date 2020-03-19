@@ -9,7 +9,7 @@ const { Crossover } = require("./crossover_util.js");
 const { readFasta, multialign_to_chrPos_posMap } = require("./fasta_util.js");
 const { SegRow } = require("./SegFile.js");
 
-const { loadCmpData } = require("./analyser.js");
+const { initAnalyser, loadCmpData } = require("./analyser.js");
 
 const argv = argv_parse(process.argv);
 
@@ -41,8 +41,10 @@ const co_list = ((co_list_filename) => {
 	return list;
 })(argv_co_list);
 
-const dataset = Dataset.loadFromFile(argv_dataset_path);
 const input_fasta = readFasta(argv_seq);
+const dataset = Dataset.loadFromFile(argv_dataset_path);
+dataset.load_GC_content();
+dataset.load_rDNA_info();
 
 main();
 
@@ -57,21 +59,24 @@ function main() {
 	let seq_id_list = Object.keys(input_fasta);
 	seq_id_list.forEach((id, i) => seq_list[i] = input_fasta[id]);
 
-	let analyser_options = {
+	let analysis_options = {
+		get mode() { return dataset.mode; },
 		get nChr() { return argv_output_chr },
 		get rDNA_info() { return dataset.rDNA_info; },
 		get co_list() { return co_list; },//in this stage
 		get fill_prev_color() { return true; },
+		get mode() { return dataset.mode; },
 	};
-	let data = loadCmpData(seq_list, analyser_options);
+	initAnalyser(analysis_options);
+	let data = loadCmpData(seq_list, analysis_options);
 
 	let ref_snp = [...seq_list[0]].map((q, i) => [data.pos_ref1_uint32array[i], q, seq_list[1][i], data.pos_ref2_uint32array[i]]).filter(([ref1_pos, q, c, ref2_pos]) => q != c);
 	let ref_snv = ref_snp.filter(([ref1_pos, q, c, ref2_pos]) => q != c && q != "-" && c != "-");
 	let ref_snp_indel = ref_snp.filter(([ref1_pos, q, c, ref2_pos]) => q != c && ((q == "-" && c != "-") || (q != "-" && c == "-")));//q is del or c is del
 
-	fs.writeFileSync(`output/${argv_output_prefix}_snp.txt`, JSON.stringify(ref_snp));
-	fs.writeFileSync(`output/${argv_output_prefix}_snv.txt`, JSON.stringify(ref_snv));
-	fs.writeFileSync(`output/${argv_output_prefix}_snp_indel.txt`, JSON.stringify(ref_snp_indel));
+	fs.writeFileSync(`${dataset.output_path}/${argv_output_prefix}_snp.txt`, JSON.stringify(ref_snp));
+	fs.writeFileSync(`${dataset.output_path}/${argv_output_prefix}_snv.txt`, JSON.stringify(ref_snv));
+	fs.writeFileSync(`${dataset.output_path}/${argv_output_prefix}_snp_indel.txt`, JSON.stringify(ref_snp_indel));
 
 	const output_head = [
 		"Chromosome",
@@ -119,6 +124,6 @@ function main() {
 		s1n3.length, s2n2.length, s3n1.length, s4n0.length
 	].join("\t") + "\n";
 
-	fs.writeFileSync(`output/${argv_output_prefix}_summary.txt`, output_text);
+	fs.writeFileSync(`${dataset.output_path}/${argv_output_prefix}_summary.txt`, output_text);
 }
 
