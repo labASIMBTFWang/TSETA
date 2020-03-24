@@ -8,11 +8,12 @@ const { BlastnCoord, execAsync, exec_blastn, exec_blastn_Ex, parseBlastnResults,
 const { run_mafft } = require("./run_mafft.js");
 const { readFasta, saveFasta } = require("./fasta_util.js");
 const { validation_chr } = require("./validation_seq.js");
-const { Dataset } = require("./dataset.js");
+const { Dataset, RibosomalDNA_Data } = require("./dataset.js");
 
 const argv = argv_parse(process.argv);
 
 const DEBUG = !!argv["--debug"];
+const VERBOSE = process.argv.indexOf("--verbose") >= 0;
 const argv_dataset_path = String(argv["-dataset"] || "");
 const dataset = Dataset.loadFromFile(argv_dataset_path);
 
@@ -23,7 +24,7 @@ if (process.argv[1] == __filename) {
 }
 
 async function main() {
-	if (!dataset.rDNA) {
+	if (argv["-chr"] != null && argv["-rDNA"] != null) {
 		let nChr = Number(argv["-chr"]);
 		let fasta_filepath = String(argv["-rDNA"] || "");
 
@@ -36,19 +37,10 @@ async function main() {
 			return;
 		}
 
-		dataset.rDNA = {};
+		dataset.rDNA = new RibosomalDNA_Data();
 		dataset.rDNA.nChr = nChr;
 		dataset.rDNA.sequence = fasta_filepath;
 		fs.writeFileSync(argv_dataset_path, JSON.stringify(dataset, null, "\t"));
-	}
-	const rDNA_nChr = Number(dataset.rDNA.nChr);
-
-	for (let i = 1; i <= genome_info_list[0].chr_list.length; ++i) {
-		if (i != rDNA_nChr) {
-			let input_path = `${dataset.tmp_path}/mafft_ch${i}.fa`;
-			let output_path = `${dataset.output_path}/mafft_ch${i}.fa`;
-			fs.createReadStream(input_path).pipe(fs.createWriteStream(output_path));//copy file
-		}
 	}
 
 	try {
@@ -61,7 +53,12 @@ async function main() {
 	}
 	finally {
 		fs.writeFileSync(argv_dataset_path, JSON.stringify(dataset, null, "\t"));
+		console.log("save:", argv_dataset_path);
 	}
+
+	console.log("next step:", "analysis");
+	console.log("snp calling command:", `node ./src/snp_summary.js -dataset ${argv_dataset_path}`);
+	console.log("tetrad analysis command:", `node ./src/tetrad_summary.js -dataset ${argv_dataset_path} -min-co 5000`);
 }
 
 async function re_align_rdna() {
@@ -222,7 +219,9 @@ async function re_align_rdna() {
 		}
 		else {
 			no_align_group_list.push(grp_fa);
-			console.info("1 seq, grpIdx:", (grpIdx + 1));
+			if (VERBOSE) {
+				console.info("1 seq, grpIdx:", (grpIdx + 1));
+			}
 			return null;//skip
 		}
 	});
@@ -346,7 +345,7 @@ async function re_align_rdna() {
 	else {
 		let output_path = `${dataset.output_path}/mafft_ch${nChr}.fa`;
 
-		console.log("output fasta", Path.resolve(output_path));
+		console.log("output:", output_path);
 
 		saveFasta(output_path, final_mafft_seq);
 	}
@@ -404,19 +403,21 @@ async function find_rDNA_use_blastn(rDNA_filePath, genomeIndex, nChr) {
 	let min_sstart = Math.min(...group.map(a => a.s_min));
 	let max_send = Math.max(...group.map(a => a.s_max));
 
-	console.log({
-		subject: subject_genome_name,
-		min_sstart, max_send,
-		len: max_send - min_sstart,
-		"_table.length": _table.length,
-		"group.length": group.length,
-	});
+	if (VERBOSE) {
+		console.log({
+			subject: subject_genome_name,
+			min_sstart, max_send,
+			len: max_send - min_sstart,
+			"_table.length": _table.length,
+			"group.length": group.length,
+		});
+	}
 
 	if (!(max_send > min_sstart)) {
 		throw new Error("if (!(max_send > min_sstart)) {");
 	}
 	else {		
-		let raw_fa = readFasta(`${dataset.tmp_path}/fasta/${subject_genome_name}_${subject_chr_name}.fa`)[subject_chr_name];	
+		let raw_fa = readFasta(`${dataset.tmp_path}/fasta/${subject_genome_name}_${subject_chr_name}.fa`)[subject_chr_name];
 
 		let info = {// save rDNA repeat position
 			range: [min_sstart, max_send],

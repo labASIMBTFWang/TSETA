@@ -6,6 +6,7 @@ const Path = require("path");
 const { tsv_parse, _table_to_object_list, table_to_object_list } = require("./tsv_parser.js");
 const { parse_GC_Content_table, GC_Content_Data } = require("./GC_content_util.js");
 
+const VERBOSE = process.argv.indexOf("--verbose") >= 0;
 
 class GenomeInfo {
 	/**
@@ -59,8 +60,10 @@ class GenomeInfo {
 
 class RibosomalDNA_Data {
 	constructor() {
-		this.nChr = 6;
-		this.sequence = "rDNA.fa";
+		/** @type {number} */
+		this.nChr = null;
+		/** @type {string} - rDNA fasta file path */
+		this.sequence = null;
 	}
 }
 
@@ -279,7 +282,7 @@ class Dataset extends GenomeDataSet {
 
 		/** @type {Dataset} */
 		// @ts-ignore
-		let loaded = new Proxy(dataset, {
+		let loaded = VERBOSE ? (new Proxy(dataset, {
 			get: function (target, propertyKey, receiver) {
 				let value = Reflect.get(target, propertyKey, receiver);
 				if (value === null || value === undefined) {
@@ -288,7 +291,7 @@ class Dataset extends GenomeDataSet {
 				}
 				return value;
 			},
-		});
+		})) : dataset;
 		
 		//loaded.gc_content = Dataset.__load_GC_content(dataset.GC_Content_filePath);
 
@@ -312,10 +315,12 @@ class Dataset extends GenomeDataSet {
 			value: dataset_path,
 		});
 
-		// @ts-ignore
-		if (globalThis.dataset instanceof Dataset) {
+		if (VERBOSE) {
 			// @ts-ignore
-			console.warn("dataset loaded:", globalThis.dataset.$path);
+			if (globalThis.dataset instanceof Dataset) {
+				// @ts-ignore
+				console.warn("dataset loaded:", globalThis.dataset.$path);
+			}
 		}
 		Object.defineProperty(globalThis, "dataset", {
 			value: loaded,

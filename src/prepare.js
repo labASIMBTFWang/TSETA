@@ -14,12 +14,17 @@ const argv = argv_parse(process.argv);
 main();
 
 async function main() {
-	const { genome_dataset, output_filename } = await load_or_input();
-
+	const genome_dataset = await load_or_input();
 	const loaded_data = make_genome_info(genome_dataset);
+
+	if (!fs.existsSync(`${genome_dataset.output_path}/`)) {//make output directory
+		fs.mkdirSync(`${genome_dataset.output_path}/`);
+	}
 	explode_genome(genome_dataset, loaded_data);
 	
+	const output_filename = `${encodeURIComponent(genome_dataset.name)}.json`;
 	fs.writeFileSync(output_filename, JSON.stringify(genome_dataset, null, "\t"));
+	console.log("save:", output_filename);
 
 	console.log("next step:", "detect GC content %, AT-rich blocks, centromere, telomeres");
 	console.log("command:", `node ./src/make_GC_AT_table.js -dataset ${output_filename} -w <window size> -m <???>`);
@@ -42,13 +47,8 @@ async function load_or_input() {
 	if (!genome_dataset) {
 		genome_dataset = await userInput_genomeDataset();
 	}
-	
-	if (!fs.existsSync(`${genome_dataset.output_path}/`)) {//make output directory
-		fs.mkdirSync(`${genome_dataset.output_path}/`);
-	}
-	let output_filename = `${encodeURIComponent(genome_dataset.name)}.json`;
 
-	return { genome_dataset, output_filename };
+	return genome_dataset;
 }
 
 /**
@@ -150,12 +150,24 @@ function make_genome_info(genome_dataset) {
 
 	/** @type {{[genomeName:string]:{genome_name:string,chr_name_list:string[],fasta:{[chrName:string]:string}}}} */
 	const loaded_data = {};
+	
+	let found_dup_name = false;
+	const seq_name_set = new Set();
 
 	genomeNameList.forEach(genome_name => {
-		let fname = `${genome_dataset.output_path}/${genome_name}.length.txt`;
 		let fa = readFasta(genomeFileMap[genome_name]);
 
 		const chr_name_list = Object.keys(fa);
+
+		chr_name_list.forEach(name => {
+			if (seq_name_set.has(name)) {
+				found_dup_name = true;
+				console.log("found duplicate sequence name:", name, "in", genome_name);
+			}
+			else {
+				seq_name_set.add(name);
+			}
+		});
 
 		loaded_data[genome_name] = {
 			genome_name: genome_name,
@@ -163,16 +175,17 @@ function make_genome_info(genome_dataset) {
 			chr_name_list: chr_name_list,
 		};
 
-		if (!fs.existsSync(fname)) {
-			let out_text = "";
-			out_text += header;
-			out_text += chr_name_list.map((seq_name, idx) => [idx + 1, seq_name, fa[seq_name].length].join("\t")).join("\n");
-
-			fs.writeFileSync(fname, out_text);
-
-			console.log("output *.length.txt", fname);
-		}
+		let output_fname = `${genome_dataset.output_path}/${genome_name}.length.txt`;
+		let out_text = "";
+		out_text += header;
+		out_text += chr_name_list.map((seq_name, idx) => [idx + 1, seq_name, fa[seq_name].length].join("\t")).join("\n");
+		fs.writeFileSync(output_fname, out_text);
+		console.log("output:", output_fname);
 	});
+
+	if (found_dup_name ) {
+		throw new Error("found duplicate sequence  name");
+	}
 
 	return loaded_data;
 }
@@ -196,7 +209,7 @@ function explode_genome(genome_dataset, loaded_data) {
 			let fname_fasta = `${genome_dataset.tmp_path}/fasta/${gName}_${chrName}.fa`;
 			
 			if (!fs.existsSync(fname_fasta)) {
-				console.log("output", gName, nChr, fname_fasta);
+				console.log("output:", gName, nChr, fname_fasta);
 				saveFasta(fname_fasta, {
 					[chrName]: loaded_data[gName].fasta[chrName],
 				});

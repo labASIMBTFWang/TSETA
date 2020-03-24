@@ -5,8 +5,9 @@ const fs = require("fs");
 const Path = require("path");
 const { loadSetting } = require("./setting.js");
 
-const setting = loadSetting();
+const VERBOSE = process.argv.indexOf("--verbose") >= 0;
 
+const setting = loadSetting();
 
 class BlastnCoord {
 	constructor() {
@@ -186,7 +187,9 @@ function exec_blastn(query_file, subject_file, qstart, qend, sstart, send, _task
 
 	_task_name = _task_name || "default";
 
-	console.log(cmd);
+	if (VERBOSE) {
+		console.log(cmd);
+	}
 
 	return new Promise(function (resolve, reject) {
 		child_process.exec(cmd, function (err, stdout, stderr) {
@@ -233,7 +236,9 @@ function exec_blastn_Ex(query_file, subject_file, qstart, qend, sstart, send, ar
 	let subject_loc = Number.isSafeInteger(sstart) && Number.isSafeInteger(send) ? `-subject_loc ${sstart}-${send}` : "";
 	let cmd = `${setting.blastn_bin} -query ${query_file} ${query_loc} -subject ${subject_file} ${subject_loc} ${args} -outfmt 6`;
 
-	console.log(cmd);
+	if (VERBOSE) {
+		console.log(cmd);
+	}
 
 	return new Promise(function (resolve, reject) {
 		child_process.exec(cmd, function (err, stdout, stderr) {

@@ -12,6 +12,8 @@ const { validation_chr } = require("./validation_seq.js");
 
 const argv = argv_parse(process.argv);
 
+const VERBOSE = !!argv["--verbose"];
+
 const argv_dataset_path = String(argv["-dataset"] || "");
 const dataset = Dataset.loadFromFile(argv_dataset_path);
 
@@ -27,11 +29,30 @@ else {
 }
 
 function main() {
+	let genome_has_error = false;
 	merge_chr_all_fa();
 	
 	for (let nChr = 1; nChr <= genome_info_list[0].chr_list.length; ++nChr) {
-		validation_chr(nChr, dataset.tmp_path, false);
+		let chr_has_error = validation_chr(nChr, dataset.tmp_path, false);
+		genome_has_error = genome_has_error || chr_has_error;
 	}
+
+	if (genome_has_error) {
+		console.log("has error, no output");
+		return;
+	}
+	else {
+		//clone all results to output path
+		for (let i = 1; i <= genome_info_list[0].chr_list.length; ++i) {
+			let input_path = `${dataset.tmp_path}/mafft_ch${i}.fa`;
+			let output_path = `${dataset.output_path}/mafft_ch${i}.fa`;
+			fs.createReadStream(input_path).pipe(fs.createWriteStream(output_path));//copy file
+			console.log("output:", output_path);
+		}
+	}
+	
+	console.log("next step:", "define and align the 50S rDNA loci");
+	console.log("command:", `node ./src/re_align_rDNA.js -dataset ${argv_dataset_path} -rDNA rDNA.fa -chr 6`);
 }
 
 function merge_chr_all_fa() {
@@ -65,7 +86,9 @@ function join_chr_frag(nChr, coord_list, output_name) {
 		if (!coord.centromere && fs.existsSync(in_filename)) {
 			let in_fa = readFasta(in_filename);
 
-			console.log("ch", nChr, "frag", coord.id);
+			if (VERBOSE) {
+				console.log("ch", nChr, "frag", coord.id);
+			}
 
 			Object.keys(in_fa).forEach(seq_name => {
 				let seq = in_fa[seq_name];
@@ -74,7 +97,10 @@ function join_chr_frag(nChr, coord_list, output_name) {
 						output_fa[seq_name] = "";
 					}
 					output_fa[seq_name] += seq;
-					console.log("seq.len", seq_name, output_fa[seq_name].length, "+", seq.length);
+					
+					if (VERBOSE) {
+						console.log("seq.len", seq_name, output_fa[seq_name].length, "+", seq.length);
+					}
 				}
 				else {
 					console.log("skip seq:", coord.id, seq_name);
@@ -89,8 +115,10 @@ function join_chr_frag(nChr, coord_list, output_name) {
 				let in_ref1_fa = readFasta(in_ref1_filename);
 				let in_ref2_fa = readFasta(in_ref2_filename);
 
-				console.log("ch", nChr, "frag", coord.id, "ref1 ref2");
-				
+				if (VERBOSE) {
+					console.log("ch", nChr, "frag", coord.id, "ref1 ref2");
+				}
+
 				let ref1_max_length = Math.max(...Object.values(in_ref1_fa).map(seq => seq.length));
 				let ref2_max_length = Math.max(...Object.values(in_ref2_fa).map(seq => seq.length));
 				let multi_length = ref1_max_length + ref2_max_length;
@@ -128,7 +156,9 @@ function join_chr_frag(nChr, coord_list, output_name) {
 							output_fa[seq_name] = "";
 						}
 						output_fa[seq_name] += seq;
-						console.log("indel seq.len", seq_name, output_fa[seq_name].length, "+", seq.length);
+						if (VERBOSE) {
+							console.log("indel seq.len", seq_name, output_fa[seq_name].length, "+", seq.length);//translocation, ...
+						}
 					}
 					else {
 						console.log("skip seq:", coord.id, seq_name);
