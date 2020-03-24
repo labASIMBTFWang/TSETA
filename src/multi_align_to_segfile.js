@@ -51,6 +51,7 @@ function main() {
 	let analysis_options = {
 		get nChr() { return argv_output_chr },
 		get rDNA_info() { return dataset.rDNA_info; },
+		get show_rDNA_snp() { return false; },
 		get co_list() { return null; },//not in this stage
 		get fill_prev_color() { return true; },
 		get mode() { return dataset.mode; },

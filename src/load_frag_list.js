@@ -4,6 +4,7 @@ const fs = require("fs");
 
 const { Dataset } = require("./dataset.js");
 
+const VERBOSE = process.argv.indexOf("--verbose") >= 0;
 
 class MyCoord {
 	constructor() {
@@ -133,8 +134,10 @@ function loadFragIdList(dataset) {
 					let cs_c = cs_len.reduce((prev, curr) => prev + (curr == 1 ? 1 : 0), 0);
 
 					if (qs_c >= 2 && cs_c >= 2) {
-						console.log("cen", "ch", nChr, "qs_c", qs_c);
-						console.log("cen", "ch", nChr, "cs_c", cs_c);
+						if (VERBOSE) {
+							console.log("cen", "ch", nChr, "qs_c", qs_c);
+							console.log("cen", "ch", nChr, "cs_c", cs_c);
+						}
 					}
 					else {
 						let l_id = cen_fragId_list[cen_fragId_list.length - 1];
@@ -142,13 +145,17 @@ function loadFragIdList(dataset) {
 						let next_id = keys[keys.indexOf(l_id) + 1];
 
 						cen_fragId_list.push(next_id);
-						console.log("cen", "ch", nChr, "next_id", next_id);
+						if (VERBOSE) {
+							console.log("cen", "ch", nChr, "next_id", next_id);
+						}
 					}
 				}
 
 				cen_fragId_list.forEach(id => {
 					coords[id].removed = true;
-					console.log("cen", "ch", nChr, "frag", id);
+					if (VERBOSE) {
+						console.log("cen", "ch", nChr, "frag", id);
+					}
 				});
 
 				coords[cen_fragId_list[0]].list = cen_fragId_list.map(id => coords[id]);
@@ -169,7 +176,7 @@ function loadFragIdList(dataset) {
 			});
 		}
 		catch (ex) {
-			console.error(ex);
+			console.log(ex);
 		}
 	}
 

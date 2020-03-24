@@ -112,7 +112,7 @@
 					<div class="color-set-group">
 						<ul class="colorset">
 							<li><span id="el_dad_bk" class="color-icon" style="background: #00FFFF;"></span>Reference</li>
-							<li><span id="el_mom_bk" class="color-icon" style="background: #FF90CB;"></span>subject</li>
+							<li><span id="el_mom_bk" class="color-icon" style="background: #FF90CB;"></span>SNP</li>
 						</ul>
 						<ul class="colorset">
 							<li><span id="el_deletion" class="color-icon" style="background: #FFFFFF; border: 0.5px solid black;"></span>deletion</li>
@@ -122,8 +122,8 @@
 				<div data-mode="tetrad-mode">
 					<div class="color-set-group">
 						<ul class="colorset">
-							<li><span id="el_dad_bk" class="color-icon" style="background: #00FFFF;"></span>QM6a</li>
-							<li><span id="el_mom_bk" class="color-icon" style="background: #FF90CB;"></span>CBS999.97(<i>MAT1-1</i>)</li>
+							<li><span id="el_dad_bk" contenteditable="true" class="color-icon" style="background: #00FFFF;"></span>QM6a</li>
+							<li><span id="el_mom_bk" contenteditable="true" class="color-icon" style="background: #FF90CB;"></span>CBS999.97(<i>MAT1-1</i>)</li>
 						</ul>
 						<ul class="colorset">
 							<li><span id="el_deletion" class="color-icon" style="background: #FFFFFF; border: 0.5px solid black;"></span>deletion</li>
@@ -155,21 +155,23 @@
 						<div class="makers"><span style="vertical-align: center;">Reference</span></div>
 					</div>
 					<div data-mode="tetrad-mode">
-						<div class="makers"><span style="vertical-align: center;">QM6a</span></div>
-						<div class="makers"><span style="vertical-align: center;">CBS999.97(<i>MAT1-1</i>)</span></div>
+						<div contenteditable="true" class="makers"><span style="vertical-align: center;">QM6a</span></div>
+						<div contenteditable="true" class="makers"><span style="vertical-align: center;">CBS999.97(<i>MAT1-1</i>)</span></div>
 					</div>
 					<div data-mode="snp-mode">
 						<table class="row-header" style="border-collapse: collapse;">
 							<td class="row-header">
 								<div id="snp-mode-rows" style="display: flex; flex-direction: column;">
-									<div class="makers"><span style="vertical-align: center;">Subject</div>
+									<div class="makers">
+										<span contenteditable="true" style="vertical-align: center;">Subject</span>
+									</div>
 								</div>
 							</td>
 						</table>
 					</div>
 					<div data-mode="tetrad-mode">
-						<table class="row-header" class="row-header" style="border-collapse: collapse;">
-							<td style="text-align: left; vertical-align: middle;">
+						<table class="row-header" class="row-header" style="border-collapse: collapse; width: 100%;">
+							<td contenteditable="true" style="text-align: left; vertical-align: middle;">
 								<div>Crossovers or</div>
 								<div>RIP mutations</div>
 								<div>(2:2 makers)</div>
@@ -194,7 +196,9 @@
 					</div>
 					<div id="markers_table">
 					</div>
-					<div class="gc-plot"><span>Reference GC %</span></div>
+					<div contenteditable="true" class="gc-plot" data-mode="snp-mode"><span>Reference GC %</span></div>
+					<div contenteditable="true" class="gc-plot" data-mode="tetrad-mode"><span>QM6a GC %</span></div>
+					<div contenteditable="true" class="gc-plot" data-mode="tetrad-mode"><span>CBS999.97(<i>MAT1-1</i>) GC %</span></div>
 				</div>
 			</td>
 			<td style="width: 100%;">
@@ -231,7 +235,7 @@
 		</tr>
 	</table>
 
-	<script src="../src/analyser.js"></script>
-	<script src="../src/web_ui.js"></script>
+	<script src="analyser.js"></script>
+	<script src="web_ui.js"></script>
 </body>
 </html>

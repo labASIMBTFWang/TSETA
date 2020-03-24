@@ -146,7 +146,7 @@ class AnalysisOptions {
 		this._onProgressReport = null;
 
 		/** @type {boolean} */
-		this.ignore_rDNA = false;
+		this.show_rDNA_snp = false;
 	}
 }
 
@@ -434,10 +434,10 @@ function calc_seg_reg(seq_list, options) {
 			};
 
 			let is_rDNA = (() => {
-				if (options.ignore_rDNA) {
+				if (options.show_rDNA_snp) {//ignore_rDNA
 					return false;
 				}
-				if (options.rDNA_info && options.nChr == options.rDNA_info.chr) {
+				else if (options.rDNA_info && options.nChr == options.rDNA_info.chr) {
 					if (pos >= options.rDNA_info.alignment_start && pos <= options.rDNA_info.alignment_end) {
 						return true;
 					}

@@ -16,6 +16,8 @@ const argv_output_summary_only = !!argv["--output-summary-only"];
 const argv_dataset_path = String(argv["-dataset"] || "");
 const dataset = Dataset.loadFromFile(argv_dataset_path);
 
+const VERBOSE = !!argv["--verbose"];
+
 const genome_info_list = dataset.loadGenomeInfoList();
 dataset.load_GC_content();
 dataset.load_rDNA_info();
@@ -103,13 +105,25 @@ function output_table() {
 		 * @param {(string|number)[][]} rows
 		 */
 		function output_table(type, rows) {
-			console.log(nChr, type + ":", rows.length);
+			if (VERBOSE) {
+				console.log(nChr, type + ":", rows.length);
+			}
 	
 			const output_path = `${dataset.output_path}/${type}_ch${nChr}.txt`;
 			
 			const output_header = ["ref_pos", "ref"];
 			seq_list.slice(1).map((_, targetIdx) => output_header.push("target" + targetIdx + "_pos", "target" + targetIdx));
-			fs.writeFileSync(output_path, output_header.join("\t") + "\n");
+			
+			const ws = fs.createWriteStream(output_path);
+			ws.write(output_header.join("\t") + "\n");
+			rows.forEach(cols => {
+				let row = cols.map(v => v != null ? v : "").join("\t") + "\n";
+				ws.write(row);
+			});
+			ws.end();
+			console.log("output table:", output_path);
+
+			//fs.writeFileSync(output_path, output_header.join("\t") + "\n");
 			
 			// rows.forEach(cols => {
 			// 	let row = cols.map(v => v != null ? v : "").join("\t") + "\n";
@@ -120,16 +134,14 @@ function output_table() {
 			// 	});
 			// });
 			
-			const output_table = rows.map(cols => cols.map(v => v != null ? v : "").join("\t")).join("\n");
-			//console.log(output_table.length);
-			fs.writeFile(output_path, output_table, { flag: "a" }, function (err) {
-				if (err) {
-					console.error(err);
-				}
-				else {
-					console.log("output:", output_path);
-				}
-			});
+			// const output_table = rows.map(cols => cols.map(v => v != null ? v : "").join("\t")).join("\n");
+			// //console.log(output_table.length);
+			// fs.writeFile(output_path, output_table, { flag: "a" }, function (err) {
+			// 	if (err) {
+			// 		console.error(err);
+			// 	}
+			// 	console.log("output:", output_path);
+			// });
 		}
 	});
 }
@@ -144,7 +156,12 @@ function output_viewer() {
 			const nChr = chrIdx + 1;
 			return `mafft_ch${nChr}.fa`;
 		});
-		output_html(template_html, `${dataset.output_path}/debug_${output_prefix}_snp.html`, false);
+		const output_path = `${dataset.output_path}/debug_${output_prefix}_snp.html`;
+		
+		output_html(template_html, output_path, false);
+		if (VERBOSE) {
+			console.log("output debug viewer", output_path);
+		}
 	}
 
 	//single html
@@ -153,7 +170,11 @@ function output_viewer() {
 		dataset.results = genome_info_list[0].chr_list.map(function (chrName, chrIdx) {
 			return all_seq[chrIdx];
 		});
-		output_html(template_html, `${dataset.output_path}/${output_prefix}_snp.html`, true);
+		const output_path = `${dataset.output_path}/${output_prefix}_snp.html`;
+
+		output_html(template_html, output_path, true);
+	
+		console.log("output viewer:", output_path);
 	}
 	
 	function output_html(input_html, output_path, inline_script) {
@@ -170,8 +191,6 @@ function output_viewer() {
 		}
 
 		fs.writeFileSync(output_path, output_html);
-	
-		console.log("output viewer", output_path);
 	}
 }
 

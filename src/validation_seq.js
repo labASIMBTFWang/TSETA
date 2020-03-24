@@ -34,8 +34,13 @@ class ErrInfo {
 	}
 }
 
+let VERBOSE = false;
 if (process.argv[1] == __filename) {
+	VERBOSE = true;
 	main();
+}
+else {
+	VERBOSE = process.argv.indexOf("--verbose") >= 0;
 }
 
 function main() {
@@ -51,14 +56,18 @@ function main() {
  */
 function validation_chr(nChr, directory_path, skip_if_not_exist) {
 	const input_path = `${directory_path}/mafft_ch${nChr}.fa`;
+	let chr_has_error = false;
 	if (fs.existsSync(input_path)) {
 		const input_fasta = readFasta(Path.join(argv_input_path, input_path));
 
-		console.log("input_path", input_path);
-		
+		if (VERBOSE) {
+			console.log("input_path", input_path);
+		}
+			
 		const seq_id_list = Object.keys(input_fasta);
 
-		validation_seq(seq_id_list, input_fasta, nChr);
+		let seq_has_error = validation_seq(seq_id_list, input_fasta, nChr);
+		chr_has_error = chr_has_error || seq_has_error;
 
 		if (argv_find_border) {
 			find_border(seq_id_list, input_fasta, nChr);
@@ -67,9 +76,12 @@ function validation_chr(nChr, directory_path, skip_if_not_exist) {
 	else if (!skip_if_not_exist) {
 		console.log("skip:", input_path);
 	}
+	
+	return chr_has_error;
 }
 
 function validation_seq(seq_id_list, fa, nChr) {
+	let seq_has_error = false;
 	let raw_seq = dataset.genomeNameList.map((genome_name, i) => {
 		try {
 			const chr_seq = readFasta(dataset.genomeFileMap[genome_name]);
@@ -110,9 +122,15 @@ function validation_seq(seq_id_list, fa, nChr) {
 			}
 		}
 		if (!has_error) {
-			console.log(s_name, "ok");
+			seq_has_error = seq_has_error || has_error;
+
+			if (VERBOSE) {
+				console.log(s_name, "ok");
+			}
 		}
 	});
+	
+	return seq_has_error;
 }
 
 function find_border(seq_id_list, fa, nChr) {

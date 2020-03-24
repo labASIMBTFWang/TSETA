@@ -14,6 +14,8 @@ const argv_dataset_path = String(argv["-dataset"] || "");
 const argv_closeCOsMinDistance = Number(argv["-min-co"]);
 const argv_output_summary_only = !!argv["--output-summary-only"];
 
+const VERBOSE = !!argv["--verbose"];
+
 const dataset = Dataset.loadFromFile(argv_dataset_path);
 dataset.load_GC_content();
 dataset.load_rDNA_info();
@@ -57,7 +59,9 @@ async function main() {
 			try {
 				await spawnNodeAsync(multi_align_to_segfile_args);
 
-				console.log("nChr", nChr, "segfile");
+				if (VERBOSE) {
+					console.log("nChr", nChr, "segfile");
+				}
 
 				fin_list[chrIdx].push("segfile");
 			}
@@ -77,7 +81,9 @@ async function main() {
 			try {
 				await spawnNodeAsync(crossover_ars);
 
-				console.log("nChr", nChr, "crossover");
+				if (VERBOSE) {
+					console.log("nChr", nChr, "crossover");
+				}
 
 				fin_list[chrIdx].push("crossover");
 			}
@@ -99,7 +105,9 @@ async function main() {
 			try {
 				await spawnNodeAsync(tetrad_chr_summary_args);
 
-				console.log("nChr", nChr, "summary");
+				if (VERBOSE) {
+					console.log("nChr", nChr, "summary");
+				}
 
 				fin_list[chrIdx].push("summary");
 			}
@@ -111,12 +119,12 @@ async function main() {
 		});
 		await Promise.all(tasks);
 
-		console.log(fin_list);
+		if (VERBOSE) {
+			console.log(fin_list);
 
-		console.log(cmds.join("\n"));
+			console.log(cmds.join("\n"));
+		}
 	}
-
-	output_final_table();
 
 	{
 		let template_html = fs.readFileSync(`${__dirname}/template_viewer.html`).toString();
@@ -132,7 +140,13 @@ async function main() {
 				const nChr = chrIdx + 1;
 				return `mafft_ch${nChr}.fa`;
 			});
-			output_html(template_html, `${dataset.output_path}/debug_${output_prefix}.html`, false);
+			const output_path = `${dataset.output_path}/debug_${output_prefix}.html`;
+
+			output_html(template_html, output_path, false);
+		
+			if (VERBOSE) {
+				console.log("output debug viewer:", output_path);
+			}
 		}
 
 		//single html
@@ -141,12 +155,15 @@ async function main() {
 			dataset.results = genome_info_list[0].chr_list.map(function (chrName, chrIdx) {
 				return all_seq[chrIdx];
 			});
-			output_html(template_html, `${dataset.output_path}/${output_prefix}.html`, true);
+			const output_path = `${dataset.output_path}/${output_prefix}.html`;
+
+			output_html(template_html, output_path, true);
+		
+			console.log("output viewer:", output_path);
 		}
 		
 		function output_html(input_html, output_path, inline_script) {
 			let output_html = input_html.replace(`<script id="dataset.json" type="application/json"></script>`, `<script id="dataset.json" type="application/json">${JSON.stringify(dataset)}</script>`);
-			//output_html = output_html.replace(`<script id="all_seq.json" type="application/json"></script>`, `<script id="all_seq.json" type="application/json">${JSON.stringify(all_seq)}</script>`);
 
 			if (inline_script) {
 				output_html = output_html.replace(`<script src="analyser.js"></script>`, `<script>${analyser_js}</script>`);
@@ -158,10 +175,10 @@ async function main() {
 			}
 
 			fs.writeFileSync(output_path, output_html);
-		
-			console.log("output viewer:", output_path);
 		}
 	}
+
+	output_final_table();
 }
 
 function load_all_seq() {
@@ -226,7 +243,11 @@ function output_final_table() {
 	
 	final_text += final_table.map(row => output_head.map(key => row[key]).join("\t")).join("\n");
 
-	fs.writeFileSync(`${dataset.output_path}/${output_prefix}_final_table.txt`, final_text);
+	let output_path = `${dataset.output_path}/${output_prefix}_final_table.txt`;
+
+	fs.writeFileSync(output_path, final_text);
+	
+	console.log("output table 1:", output_path);
 }
 
 function spawnNodeAsync(args) {

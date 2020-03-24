@@ -2,6 +2,8 @@
 
 const fs = require("fs");
 
+const VERBOSE = process.argv.indexOf("--verbose") >= 0;
+
 /**
  * 
  * @param {string} filename
@@ -19,7 +21,9 @@ function saveFasta(filename, fasta) {
 			str += "\n";
 		}
 		else {
-			console.warn("saveFasta:", key, "=>", fasta[key]);
+			if (VERBOSE) {
+				console.warn("saveFasta:", key, "=>", fasta[key]);
+			}
 		}
 	});
 	try {

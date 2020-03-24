@@ -19,6 +19,8 @@ const setting = loadSetting();
 
 const argv = argv_parse(process.argv);
 
+const VERBOSE = !!argv["--verbose"];
+
 const argv_dataset_path = String(argv["-dataset"] || "");
 const dataset = Dataset.loadFromFile(argv_dataset_path);
 
@@ -29,12 +31,15 @@ let {
 	thread: num_thread,
 } = mafftOptionFromDataset(dataset) || mafftOptionFromArgv(argv);
 
-dataset.mafft = {};
-dataset.mafft.algorithm = algorithm;
-dataset.mafft.default_algorithm = default_algorithm;
-dataset.mafft.maxIterate = maxiterate;
-dataset.mafft.thread = num_thread;
-fs.writeFileSync(argv_dataset_path, JSON.stringify(dataset, null, "\t"));
+if (dataset.mafft == null) {
+	dataset.mafft = {};
+	dataset.mafft.algorithm = algorithm;
+	dataset.mafft.default_algorithm = default_algorithm;
+	dataset.mafft.maxIterate = maxiterate;
+	dataset.mafft.thread = num_thread;
+	fs.writeFileSync(argv_dataset_path, JSON.stringify(dataset, null, "\t"));
+	console.log("save:", argv_dataset_path);
+}
 
 /**
  * @param {Dataset} dataset
@@ -101,13 +106,12 @@ async function main() {
 		else {
 			await loop_mafft(chr_frag_list, nChr);
 		}
-	}
 
-	for (let i = 1; i <= genome_info_list[0].chr_list.length; ++i) {
-		let input_path = `${dataset.tmp_path}/mafft_ch${i}.fa`;
-		let output_path = `${dataset.output_path}/mafft_ch${i}.fa`;
-		fs.createReadStream(input_path).pipe(fs.createWriteStream(output_path));//copy file
+		console.log(`finished ch${nChr}`);
 	}
+	
+	console.log("next step:", "Combine the MAFFT results");
+	console.log("command:", `node ./src/join_fasta.js -dataset ${argv_dataset_path}`);
 }
 
 async function loop_mafft(chr_frag_list, nChr) {
@@ -154,9 +158,9 @@ async function run_multialign(nChr, fragId, _algorithm) {
 			return result_1 && result_2;
 		}
 		else {
-			// TODO: write log
+			// TODO: write to log
 
-			console.error({
+			console.log({
 				fragId: fragId,
 				"ref1 file": fs.existsSync(input_ref1_path),
 				"ref2 file": fs.existsSync(input_ref2_path),
@@ -183,7 +187,9 @@ async function run_mafft(input_path, output_file, _algorithm, nChr, fragId, reAl
 			console.log("remove empty file", output_file);
 		}
 		else if (!reAlign) {
-			console.log("skip exist", output_file);
+			if (VERBOSE) {
+				console.log("skip exist", output_file);
+			}
 			return true;
 		}
 	}
@@ -194,7 +200,9 @@ async function run_mafft(input_path, output_file, _algorithm, nChr, fragId, reAl
 
 	const mafft_cmd = `${setting.mafft_bin} --quiet ${arg_thread} ${arg_algorithm} ${arg_maxiterate} ${input_path} > ${output_file}`;
 
-	console.log(mafft_cmd);
+	if (VERBOSE) {
+		console.log(mafft_cmd);
+	}
 
 	let interval_id;
 
@@ -244,7 +252,9 @@ async function run_mafft(input_path, output_file, _algorithm, nChr, fragId, reAl
 		catch (ex) {
 			console.error("error", ex, log_text);
 		}
-		console.log(time_elapsed);
+		if (VERBOSE) {
+			console.log(time_elapsed);
+		}
 
 		return true;
 	}
@@ -262,7 +272,7 @@ async function run_mafft(input_path, output_file, _algorithm, nChr, fragId, reAl
 			fs.writeFileSync(`${dataset.tmp_path}/loop-ma-log.txt`, log_text, { flag: "a" });//append to log file
 		}
 		catch (ex) {
-			console.error("ex error", ex);
+			console.log("ex error", ex);
 		}
 		console.log("err", time_elapsed);
 
@@ -283,7 +293,9 @@ async function loop_centromere_AT_mafft(all_chr_frag_list, nChr) {
 	let chr_tasks = list.filter(coord => coord.centromere).map(async function (cen_coord) {
 		let cen_fragId_list = cen_coord.list.map(a => a.id);
 
-		cen_coord.list.forEach(a => console.log(": cen", "ch", nChr, "frag", a.id));
+		if (VERBOSE) {
+			cen_coord.list.forEach(a => console.log(": cen", "ch", nChr, "frag", a.id));
+		}
 
 		/** @type {{[seqName:string]:string}} */
 		const merged_fasta = joinFastaSeq(cen_fragId_list.map(a => `${dataset.tmp_path}/seq_frag/ch${nChr}_${a}.fa`).map(a => readFasta(a)));
@@ -370,13 +382,17 @@ async function loop_centromere_AT_mafft(all_chr_frag_list, nChr) {
 						// TODO: write log
 					}
 				}
-				console.log("end cen ref1 ref2");
+				if (VERBOSE) {
+					console.log("end cen ref1 ref2");
+				}
 			}
 		}//qs_filename, cs_filename
 		else {
-			console.log("done", nChr, {
-				qs_filename: qs_file_path, cs_filename: cs_file_path, output_qs_filename, output_cs_filename
-			});
+			if (VERBOSE) {
+				console.log("done", nChr, {
+					qs_filename: qs_file_path, cs_filename: cs_file_path, output_qs_filename, output_cs_filename
+				});
+			}
 		}
 
 		//next step

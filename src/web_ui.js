@@ -275,7 +275,10 @@ class ViewerState {
 		return this._display_rip;
 	}
 	set display_rip(value) {
-		this._display_rip = value;
+		if (this._display_rip != value) {
+			this._display_rip = value;
+			drawFrame();
+		}
 	}
 
 	get display_4n0() {
@@ -476,10 +479,9 @@ const analysis_options = {
 	get mode() { return dataset.mode; },
 	get nChr() { return viewerState.nChr },
 	get rDNA_info() { return dataset.rDNA_info; },
+	//get show_rDNA_snp() { return true; },
 	get co_list() { return dataset.crossover_list ? dataset.crossover_list[viewerState.nChr - 1] : null; },
 	get fill_prev_color() { return viewerState.fill_prev_color; },
-
-	//get ignore_rDNA() { return true; },
 };
 initAnalyser(analysis_options);
 {
@@ -494,7 +496,7 @@ initAnalyser(analysis_options);
 		if (dataset.progeny_list.length > 1) {
 			for (let i = 1; i <= dataset.progeny_list; ++i) {
 				let elem_div = document.createElement("div");
-				elem_div.outerHTML = `<div class="makers"><span style="vertical-align: center;">Subject ${i}</div>`;
+				elem_div.outerHTML = `<div class="makers"><span contenteditable="true" style="vertical-align: center;">Subject ${i}</span></div>`;
 				document.getElementById("snp-mode-rows").append(elem_div);
 			}
 		}
@@ -505,6 +507,11 @@ initAnalyser(analysis_options);
 
 	el_display_buttons_group.innerHTML = "";//clear
 
+	if (analysis_options.mode == "tetrad") {
+		appendMakerstable({
+			name: "Crossover",
+		});
+	}
 	// no display 2:2 SNV
 	allMarker.list.slice(1).forEach(marker => {
 		appendMakerstable(marker);
@@ -513,7 +520,7 @@ initAnalyser(analysis_options);
 	function appendMakerstable(marker) {
 		let elem_div = document.createElement("div");
 		elem_div.classList.add("makers");
-		elem_div.innerHTML = `<span>${marker.name}</span>`;
+		elem_div.innerHTML = `<span contenteditable="true">${marker.name}</span>`;
 		el_markers_table.append(elem_div);
 	}
 	function appendDisplayButton(marker) {
@@ -766,8 +773,8 @@ function set_view_range(start, end) {
 }
 
 /**
- * @param {number} merge_size
- * @param {boolean} [refresh]
+ * @param {number} [merge_size] - auto merge window if null
+ * @param {boolean} [refresh] - refresh frame
  */
 function merge_gc_content(merge_size, refresh = false) {
 	//seq_list[0].length
@@ -801,7 +808,7 @@ function merge_gc_content(merge_size, refresh = false) {
 	if (el_gc_content_window_size != merge_size) {
 		el_gc_content_window_size.value = merge_size;//new window size
 	}
-	
+
 	if (refresh) {
 		drawFrame();
 	}

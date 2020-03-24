@@ -13,6 +13,8 @@ const argv = argv_parse(process.argv);
 const argv_window_size = Number(argv["--window"] || argv["-w"]) | 0;
 const argv_AT_island_GC_minus = (Number(argv["--minus"] || argv["-m"]) | 0);//6 // AT_island => gc(window) <= (gc(all) - minus)
 
+const VERBOSE = !!argv["--verbose"];
+
 /**
 A = [...seq_list[0]].filter(a => a != "-").slice(0, 5000).filter(a => a == "A").length;
 T = [...seq_list[0]].filter(a => a != "-").slice(0, 5000).filter(a => a == "T").length;
@@ -21,9 +23,11 @@ C = [...seq_list[0]].filter(a => a != "-").slice(0, 5000).filter(a => a == "C").
 (G + C) / (A + T + G + C) * 100
  */
 
-console.log({
-	argv_AT_island_GC_minus, argv_window_size,
-});
+if (VERBOSE) {
+	console.log({
+		argv_AT_island_GC_minus, argv_window_size,
+	});
+}
 
 {
 	const argv_dataset_path = String(argv["-dataset"] || "");
@@ -109,7 +113,7 @@ console.log({
 			{
 				let [at1, at2] = [AT_desc_list[0], AT_desc_list[1]].sort((a, b) => a.start - b.start);
 				//console.log("ch", nChr, "at1, 500bp, at2", at1.start, at1.end, at2.start, at2.end);
-				// 合併 2 個鄰近的 AT island，2 個 AT island 間最多能有 1 個 window (QM6a ChIV: 1482500-1559500,1560000-1659000)
+				// 合併 2 個鄰近的 AT-island，2 個 AT-island 間最多能有 1 個 window (QM6a ChIV: 1482500-1559500,1560000-1659000)
 				if ((at2.start - at1.end) <= Math.abs(at1.end - at1.start)) {
 					cen_range.start = at1.start;
 					cen_range.end = at2.end;
@@ -159,10 +163,12 @@ console.log({
 
 	const output_dataset = JSON.stringify(dataset, null, "\t");
 
-	console.log(`updated: ${argv_dataset_path}`);
 	fs.writeFileSync(argv_dataset_path, output_dataset);
 	
-	console.log("next command:", `node ./src/slice_all.js -dataset ${argv_dataset_path}`);
+	console.log("save:", argv_dataset_path);
+	
+	console.log("next step:", "Sequential (5' to 3') slicing of the query chromosome into smaller fragments (~10 kb)");
+	console.log("command:", `node ./src/slice_all.js -dataset ${argv_dataset_path}`);
 }
 
 class AT_island_Data {
@@ -175,7 +181,7 @@ class AT_island_Data {
 }
 
 function make_table(input_filename, output_prifix) {
-	console.log("input fa", input_filename);
+	console.log("input:", input_filename);
 
 	const input_file = fs.readFileSync(input_filename).toString();
 	const input_seq = parseFasta(input_file);
@@ -185,8 +191,8 @@ function make_table(input_filename, output_prifix) {
 	const all_gc_content = get_all_gc_content(input_seq);
 	const at_island_maxmum_gc = all_gc_content - argv_AT_island_GC_minus;
 	
-	console.log("GC", all_gc_content, "%");
-	console.log("AT island maxmum GC%", at_island_maxmum_gc);
+	console.log("GC%", all_gc_content);
+	console.log("AT-island maxmum GC%", at_island_maxmum_gc);
 
 	/** @type {GC_Content_Data[][]} */
 	let all_gc_table = [];
