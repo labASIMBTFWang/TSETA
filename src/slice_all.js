@@ -73,7 +73,7 @@ async function multi_coord(nChr) {
 	
 	const chr_info_list = genome_info_list.map(genome_info => genome_info.chr_list[chr_idx]);
 	const chr_name_list = chr_info_list.map(chr_info => chr_info.chr);
-	const chr_fastaPath_list = dataset.genomeNameList.map((gName, i) => `${dataset.tmp_path}/fasta/${gName}_${chr_name_list[i]}.fa`);
+	const chr_fastaPath_list = chr_info_list.map(chr_info => chr_info.path);
 
 	const chr_seq_list = chr_fastaPath_list.map((filepath, i) => readFasta(filepath)[chr_name_list[i]]);
 
