@@ -1,9 +1,9 @@
 {
   "name": "tseta",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "contributors": [
     "Wan-Chen Li <wanwan9121@hotmail.com>",
-    "Hou-Chen Liu <hc666@gate.sinica.edu.tw>"
+    "Hou-Cheng Liu <hc666@gate.sinica.edu.tw>"
   ],
   "license": "MIT",
   "description": "TSETA: a third-generation sequencing-based program for single-nucleotide-resolution mapping of meiotic recombination products and repeat-induced point mutations",

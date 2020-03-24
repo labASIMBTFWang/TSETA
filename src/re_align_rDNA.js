@@ -374,7 +374,7 @@ async function find_rDNA_use_blastn(rDNA_filePath, genomeIndex, nChr) {
 	const subject_chrInfo = genome_info_list[genomeIndex].chr_list;
 	const subject_chr_name = subject_chrInfo[nChr - 1].chr;
 
-	const subject_fa_filename = `${dataset.tmp_path}/fasta/${subject_genome_name}_${subject_chr_name}.fa`;
+	const subject_fa_filename = subject_chrInfo[nChr - 1].path;
 
 	let result_text = await exec_blastn_Ex(rDNA_filePath, subject_fa_filename, undefined, undefined, undefined, undefined, "-evalue 1e-5");
 	let _table = parseBlastnResults(result_text);

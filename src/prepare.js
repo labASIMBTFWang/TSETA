@@ -6,7 +6,7 @@ const Path = require("path");
 const { inputFile, inputDirectory, inputNumber, inputText, inputSelect } = require("./interact-util.js").userInput;
 const { argv_parse, array_groupBy } = require("./util.js");
 const { readFasta, saveFasta } = require("./fasta_util.js");
-const { GenomeDataSet, Dataset } = require("./dataset.js");
+const { GenomeDataSet, Dataset, GenomeInfo } = require("./dataset.js");
 
 const argv = argv_parse(process.argv);
 
@@ -15,11 +15,12 @@ main();
 
 async function main() {
 	const genome_dataset = await load_or_input();
-	const loaded_data = make_genome_info(genome_dataset);
 
 	if (!fs.existsSync(`${genome_dataset.output_path}/`)) {//make output directory
 		fs.mkdirSync(`${genome_dataset.output_path}/`);
 	}
+	const loaded_data = make_genome_info(genome_dataset);
+
 	explode_genome(genome_dataset, loaded_data);
 	
 	const output_filename = `${encodeURIComponent(genome_dataset.name)}.json`;
@@ -184,7 +185,7 @@ function make_genome_info(genome_dataset) {
 	});
 
 	if (found_dup_name ) {
-		throw new Error("found duplicate sequence  name");
+		throw new Error("found duplicate sequence name");
 	}
 
 	return loaded_data;
@@ -206,7 +207,7 @@ function explode_genome(genome_dataset, loaded_data) {
 		loaded_data[gName].chr_name_list.forEach((chrName, idx) => {
 			const nChr = idx + 1;
 
-			let fname_fasta = `${genome_dataset.tmp_path}/fasta/${gName}_${chrName}.fa`;
+			let fname_fasta = GenomeInfo.getChrFilePath(gName, chrName);
 			
 			if (!fs.existsSync(fname_fasta)) {
 				console.log("output:", gName, nChr, fname_fasta);
