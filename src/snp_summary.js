@@ -7,7 +7,7 @@ const child_process = require("child_process");
 const { argv_parse, array_groupBy } = require("./util.js");
 const { tsv_parse, table_to_object_list } = require("./tsv_parser.js");
 
-const { readFasta, saveFasta, parseFasta, joinFastaSeq } = require("./fasta_util.js");
+const { readFasta, saveFasta, joinFastaSeq } = require("./fasta_util.js");
 const { Dataset } = require("./dataset.js");
 
 const argv = argv_parse(process.argv);

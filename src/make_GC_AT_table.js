@@ -4,9 +4,9 @@
 const fs = require("fs");
 
 const { argv_parse, array_groupBy } = require("./util.js");
-const { Dataset } = require("./dataset.js");
-const  { GC_Content_Data } = require("./GC_content_util.js");
-const  { parseFasta } = require("./fasta_util.js");
+const { Dataset, GenomeInfo } = require("./dataset.js");
+const { GC_Content_Data } = require("./GC_content_util.js");
+const { readFasta } = require("./fasta_util.js");
 
 const argv = argv_parse(process.argv);
 
@@ -43,12 +43,12 @@ if (VERBOSE) {
 
 	const ref1_chr_list = genome_info_list[0];
 
-	let { all_gc_table: ref1_all_gc_table, all_island_table: ref1_all_island_table } = make_table(dataset.parental[ref1_name], ref1_name);
+	let { all_gc_table: ref1_all_gc_table, all_island_table: ref1_all_island_table } = make_table(ref1_chr_list, ref1_name);
 	
 	let ref2_all_gc_table = null;
 	if (ref2_name) {
 		const ref2_chr_list = genome_info_list[1];
-		let { all_gc_table: _ref2_all_gc_table, all_island_table: _ref2_all_island_table } = make_table(dataset.parental[ref2_name], ref2_name);
+		let { all_gc_table: _ref2_all_gc_table, all_island_table: _ref2_all_island_table } = make_table(ref2_chr_list, ref2_name);
 		
 		_ref2_all_gc_table.forEach(group => {
 			group.forEach(gc => {
@@ -180,11 +180,14 @@ class AT_island_Data {
 	}
 }
 
-function make_table(input_filename, output_prifix) {
-	console.log("input:", input_filename);
+/**
+ * 
+ * @param {GenomeInfo} genome_info
+ */
+function make_table(genome_info, output_prifix) {
+	console.log("input:", genome_info.name);
 
-	const input_file = fs.readFileSync(input_filename).toString();
-	const input_seq = parseFasta(input_file);
+	const input_seq = genome_info.loadFasta();
 	
 	//console.log("input fa", Object.keys(input_seq));
 	

@@ -82,16 +82,8 @@ function validation_chr(nChr, directory_path, skip_if_not_exist) {
 
 function validation_seq(seq_id_list, fa, nChr) {
 	let seq_has_error = false;
-	let raw_seq = dataset.genomeNameList.map((genome_name, i) => {
-		try {
-			const chr_seq = readFasta(dataset.genomeFileMap[genome_name]);
-			return chr_seq[seq_id_list[i]];
-		}
-		catch (ex) {
-			console.log(`dataset.genomeFileMap =>`, dataset.genomeFileMap);
-			console.log(`dataset.genomeFileMap[${genome_name}] =>`, dataset.genomeFileMap[genome_name]);
-			throw ex;
-		}
+	let raw_seq = genome_info_list.map((genome_info, i) => {
+		return genome_info.chr_map[seq_id_list[i]].loadSeq();
 	});
 	
 	seq_id_list.forEach((name, idx) => {

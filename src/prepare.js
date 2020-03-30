@@ -10,6 +10,8 @@ const { GenomeDataSet, Dataset, GenomeInfo } = require("./dataset.js");
 
 const argv = argv_parse(process.argv);
 
+let has_argv_dataset_path = false;
+
 
 main();
 
@@ -28,7 +30,7 @@ async function main() {
 	console.log("save:", output_filename);
 
 	console.log("next step:", "detect GC content %, AT-rich blocks, centromere, telomeres");
-	console.log("command:", `node ./src/make_GC_AT_table.js -dataset ${output_filename} -w <window size> -m <???>`);
+	console.log("command:", `node ./src/make_GC_AT_table.js -dataset ${output_filename} -w 500 -m 6`);
 }
 
 async function load_or_input() {
@@ -38,6 +40,7 @@ async function load_or_input() {
 	try {
 		if (fs.existsSync(argv_dataset_path)) {
 			genome_dataset = Dataset.loadFromFile(argv_dataset_path);
+			has_argv_dataset_path = true;
 		}
 	}
 	catch (ex) {
@@ -138,7 +141,7 @@ async function userInput_genomeDataset() {
 
 /**
  * @param {GenomeDataSet} genome_dataset
- * @returns {{[genomeName:string]:{genome_name:string,chr_name_list:string[],fasta:{[chrName:string]:string}}}}
+ * @returns {{[genomeName:string]:{genome_name:string,chr_rawName_list:string[],fasta:{[chrName:string]:string}}}}
  */
 function make_genome_info(genome_dataset) {
 	const header = ["Index", "Chromosome", "Length"].join("\t") + "\n";
@@ -149,7 +152,7 @@ function make_genome_info(genome_dataset) {
 		...genome_dataset.progeny,
 	};
 
-	/** @type {{[genomeName:string]:{genome_name:string,chr_name_list:string[],fasta:{[chrName:string]:string}}}} */
+	/** @type {{[genomeName:string]:{genome_name:string,chr_rawName_list:string[],fasta:{[chrName:string]:string}}}} */
 	const loaded_data = {};
 	
 	let found_dup_name = false;
@@ -158,9 +161,10 @@ function make_genome_info(genome_dataset) {
 	genomeNameList.forEach(genome_name => {
 		let fa = readFasta(genomeFileMap[genome_name]);
 
-		const chr_name_list = Object.keys(fa);
+		const chr_rawName_list = Object.keys(fa);
+		const chr_outputName_list = chr_rawName_list.map(seq_name => GenomeInfo.transformChrName(genome_name, seq_name));
 
-		chr_name_list.forEach(name => {
+		chr_outputName_list.forEach(name => {
 			if (seq_name_set.has(name)) {
 				found_dup_name = true;
 				console.log("found duplicate sequence name:", name, "in", genome_name);
@@ -173,13 +177,18 @@ function make_genome_info(genome_dataset) {
 		loaded_data[genome_name] = {
 			genome_name: genome_name,
 			fasta: fa,
-			chr_name_list: chr_name_list,
+			chr_rawName_list: chr_rawName_list,
 		};
 
 		let output_fname = `${genome_dataset.output_path}/${genome_name}.length.txt`;
 		let out_text = "";
 		out_text += header;
-		out_text += chr_name_list.map((seq_name, idx) => [idx + 1, seq_name, fa[seq_name].length].join("\t")).join("\n");
+		out_text += chr_rawName_list.map((seq_name, idx) => [
+			idx + 1,	// number of chr
+			chr_outputName_list[idx],	// chr name
+			fa[seq_name].length,	// chr length
+			seq_name,	// raw chr name
+		].join("\t")).join("\n");
 		fs.writeFileSync(output_fname, out_text);
 		console.log("output:", output_fname);
 	});
@@ -193,7 +202,7 @@ function make_genome_info(genome_dataset) {
 
 /**
  * @param {GenomeDataSet} genome_dataset
- * @param {{[genomeName:string]:{genome_name:string,chr_name_list:string[],fasta:{[chrName:string]:string}}}} loaded_data
+ * @param {{[genomeName:string]:{genome_name:string,chr_rawName_list:string[],fasta:{[chrName:string]:string}}}} loaded_data
  */
 function explode_genome(genome_dataset, loaded_data) {
 	if (!fs.existsSync(`${genome_dataset.tmp_path}/`)) {
@@ -204,15 +213,19 @@ function explode_genome(genome_dataset, loaded_data) {
 	}
 
 	Object.keys(loaded_data).forEach(gName => {
-		loaded_data[gName].chr_name_list.forEach((chrName, idx) => {
+		loaded_data[gName].chr_rawName_list.forEach((chr_rawName, idx) => {
 			const nChr = idx + 1;
 
-			let fname_fasta = GenomeInfo.getChrFilePath(gName, chrName);
+			const fname_fasta = GenomeInfo.makeChrFilePath(genome_dataset, gName, chr_rawName);
 			
-			if (!fs.existsSync(fname_fasta)) {
-				console.log("output:", gName, nChr, fname_fasta);
+			if (!has_argv_dataset_path && fs.existsSync(fname_fasta)) {
+				console.log("found:", fname_fasta);
+			}
+			else {
+				const output_chr_name = GenomeInfo.transformChrName(gName, chr_rawName);
+				console.log("output:", gName, nChr, `'${chr_rawName}' -> '${output_chr_name}'`, fname_fasta);
 				saveFasta(fname_fasta, {
-					[chrName]: loaded_data[gName].fasta[chrName],
+					[output_chr_name]: loaded_data[gName].fasta[chr_rawName],
 				});
 			}
 		});

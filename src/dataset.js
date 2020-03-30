@@ -5,6 +5,7 @@ const Path = require("path");
 
 const { tsv_parse, _table_to_object_list, table_to_object_list } = require("./tsv_parser.js");
 const { parse_GC_Content_table, GC_Content_Data } = require("./GC_content_util.js");
+const { readFasta } = require("./fasta_util.js");
 
 const VERBOSE = process.argv.indexOf("--verbose") >= 0;
 
@@ -18,6 +19,10 @@ class ChromosomeData {
 		this.length = null;
 		/** @type {string} - chromosome fasta file path */
 		this.path = null;
+	}
+
+	loadSeq() {
+		return readFasta(this.path)[this.chr];
 	}
 }
 class ChromosomeInfo {
@@ -50,6 +55,10 @@ class GenomeInfo {
 		this.fasta = {};
 	}
 	
+	loadFasta() {
+		return this.chr_list.reduce((obj, chrInfo) => Object.assign(obj, readFasta(chrInfo.path)), {});
+	}
+	
 	/**
 	 * @param {Dataset} dataset
 	 * @param {string} genome_name
@@ -58,7 +67,7 @@ class GenomeInfo {
 	static loadChrLength(dataset, genome_name) {
 		let text_tab = fs.readFileSync(`${dataset.output_path}/${genome_name}.length.txt`).toString();
 		let tab = tsv_parse(text_tab);
-		let rows = table_to_object_list(tab, ["index", "chr", "length"], { start_row: 1 });
+		let rows = table_to_object_list(tab, ["index", "chr", "length", "raw_chr_name"], { start_row: 1 });
 		
 		const _chrList = rows.map(row => {
 			let data = new ChromosomeData();
@@ -66,7 +75,7 @@ class GenomeInfo {
 				index: Number(row.index),
 				chr: String(row.chr),//seq name in fasta
 				length: Number(row.length),
-				path: GenomeInfo.getChrFilePath(genome_name, String(row.chr)),
+				path: `${dataset.tmp_path}/fasta/${String(row.chr)}.fa`,
 			});
 			return data;
 		});
@@ -86,11 +95,21 @@ class GenomeInfo {
 
 	/**
 	 * @param {string} genome_name
-	 * @param {string} chr_name
+	 * @param {string} raw_chr_name
 	 * @returns {string}
 	 */
-	static getChrFilePath(genome_name, chr_name) {
-		return `${dataset.tmp_path}/fasta/${genome_name}_${encodeURIComponent(chr_name)}.fa`;
+	static transformChrName(genome_name, raw_chr_name) {
+		return `${genome_name}_${encodeURIComponent(raw_chr_name)}`;
+	}
+
+	/**
+	 * @param {GenomeDataSet} dataset
+	 * @param {string} genome_name
+	 * @param {string} raw_chr_name
+	 * @returns {string}
+	 */
+	static makeChrFilePath(dataset, genome_name, raw_chr_name) {
+		return `${dataset.tmp_path}/fasta/${GenomeInfo.transformChrName(genome_name, raw_chr_name)}.fa`;
 	}
 }
 
@@ -200,9 +219,6 @@ class Dataset extends GenomeDataSet {
 
 		/** @type {string[]} */
 		this.genomeNameList = [];
-
-		/** @type {{[name:string]:string}} */
-		this.genomeFileMap = {};
 	}
 
 	/**
@@ -299,6 +315,12 @@ class Dataset extends GenomeDataSet {
 	loadGenomeInfoList() {
 		return this.genomeNameList.map(gName => new GenomeInfo(this, gName));
 	}
+	
+	loadGenomeInfoMap() {
+		let map = {};
+		this.genomeNameList.map(gName => map[gName] = new GenomeInfo(this, gName));
+		return map;
+	}
 
 	/**
 	 * @param {string} dataset_path
@@ -334,15 +356,6 @@ class Dataset extends GenomeDataSet {
 		//loaded.rDNA_info = Dataset.__load_rDNA_info_fromDataset(dataset_path);
 
 		loaded.genomeNameList = [].concat(loaded.parental_list, loaded.progeny_list);
-		
-		loaded.genomeFileMap = {};
-
-		loaded.parental_list.forEach(name => {
-			loaded.genomeFileMap[name] = loaded.parental[name];
-		});
-		loaded.progeny_list.forEach(name => {
-			loaded.genomeFileMap[name] = loaded.progeny[name];
-		});
 
 		Object.defineProperty(loaded, "$path", {
 			enumerable: false,

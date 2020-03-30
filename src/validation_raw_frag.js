@@ -32,8 +32,7 @@ function validation_frag(flags = { raw: true }) {
 	/** @type {{ [chrName: string]: string }[]} */
 	let srcRaw_genome_list = [];
 	genome_info_list.forEach((genomeInfo, i) => {
-		let genome_seq = readFasta(dataset.genomeFileMap[genomeInfo.name]);
-		srcRaw_genome_list[i] = genome_seq;
+		srcRaw_genome_list[i] = genomeInfo.loadFasta();
 	});
 
 	for (let nChr = 1; nChr <= genome_info_list[0].chr_list.length; ++nChr) {

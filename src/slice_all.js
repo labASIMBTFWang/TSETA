@@ -7,7 +7,7 @@ const Path = require("path");
 
 const { argv_parse, array_groupBy } = require("./util.js");
 const { tsv_parse, table_to_object_list } = require("./tsv_parser.js");
-const { readFasta, saveFasta, parseFasta } = require("./fasta_util.js");
+const { readFasta, saveFasta } = require("./fasta_util.js");
 const { BlastnCoord, execAsync, exec_blastn, parseBlastnResults, blastn_coord, isCollide } = require("./blastn_util.js");
 const { Dataset } = require("./dataset.js");
 

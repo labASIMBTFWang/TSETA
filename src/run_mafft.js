@@ -11,7 +11,7 @@ const { argv_parse, array_groupBy } = require("./util.js");
 const { tsv_parse, table_to_object_list } = require("./tsv_parser.js");
 
 const { BlastnCoord, execAsync, exec_blastn, parseBlastnResults, blastn_coord } = require("./blastn_util.js");
-const { readFasta, saveFasta, parseFasta, joinFastaSeq } = require("./fasta_util.js");
+const { readFasta, saveFasta, joinFastaSeq } = require("./fasta_util.js");
 const { loadFragIdList } = require("./load_frag_list.js");
 const { Dataset, MafftOptions } = require("./dataset.js");
 const { loadSetting } = require("./setting.js");

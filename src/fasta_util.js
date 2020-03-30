@@ -42,7 +42,7 @@ function saveFasta(filename, fasta) {
 function readFasta(filename) {
 	try {
 		let text = fs.readFileSync(filename).toString();
-		return parseFasta(text);
+		return _parseFasta(text);
 	}
 	catch (ex) {
 		console.error("read file error:", filename);
@@ -54,7 +54,7 @@ function readFasta(filename) {
  * @param {string} in_seq
  * @returns {{[chr:string]:string}}
  */
-function parseFasta(in_seq) {
+function _parseFasta(in_seq) {
 	let all = in_seq.split(">");
 
 	/** @type {{[chr:string]:string}} */
@@ -162,7 +162,6 @@ function multialign_to_chrPos_posMap(ma_seq) {
 
 module.exports.readFasta = readFasta;
 module.exports.saveFasta = saveFasta;
-module.exports.parseFasta = parseFasta;
 module.exports.joinFastaSeq = joinFastaSeq;
 
 module.exports.chrPos_to_multialign_posMap = chrPos_to_multialign_posMap;
