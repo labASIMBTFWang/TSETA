@@ -317,6 +317,7 @@ class Dataset extends GenomeDataSet {
 	}
 	
 	loadGenomeInfoMap() {
+		/** @type {{[GenomeName:string]: GenomeInfo}} */
 		let map = {};
 		this.genomeNameList.map(gName => map[gName] = new GenomeInfo(this, gName));
 		return map;

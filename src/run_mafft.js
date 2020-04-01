@@ -253,7 +253,7 @@ async function run_mafft(input_path, output_file, _algorithm, nChr, fragId, reAl
 			console.error("error", ex, log_text);
 		}
 		if (VERBOSE) {
-			console.log(time_elapsed);
+			console.log({time_elapsed});
 		}
 
 		return true;
@@ -274,9 +274,9 @@ async function run_mafft(input_path, output_file, _algorithm, nChr, fragId, reAl
 		catch (ex) {
 			console.log("ex error", ex);
 		}
-		console.log("err", time_elapsed);
+		console.log("error", { time_elapsed });
 
-		throw ex;
+		return false;
 	}
 	finally {
 		clearInterval(interval_id);
