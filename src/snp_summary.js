@@ -42,7 +42,8 @@ function output_table() {
 		const seq_list = chr_name_list.map(chrName => input_fa[chrName]);
 
 		let snv_rows = [];
-		let snp_rows = [];
+		let indel_rows = [];
+		let _snp_list = [];
 
 		let pos_list = chr_name_list.map(_ => 1);
 		for (let i = 0; i < seq_list[0].length; ++i) {
@@ -77,11 +78,12 @@ function output_table() {
 
 			if (has_snp) {
 				if (is_indel) {
-					snp_rows.push(columns);
+					indel_rows.push(columns);
 				}
 				else {//is snv
 					snv_rows.push(columns);
 				}
+				_snp_list.push(columns);
 			}
 		}//for each bp
 		
@@ -93,7 +95,14 @@ function output_table() {
 		}
 		
 		try {
-			output_table("snp", snp_rows);
+			output_table("indel", indel_rows);
+		}
+		catch (ex) {
+			console.error(ex);
+		}
+		
+		try {
+			output_table("snp", _snp_list);
 		}
 		catch (ex) {
 			console.error(ex);
@@ -101,7 +110,7 @@ function output_table() {
 
 		/**
 		 * 
-		 * @param {"snv"|"snp"} type
+		 * @param {"snv"|"indel"|"snp"} type
 		 * @param {(string|number)[][]} rows
 		 */
 		function output_table(type, rows) {
@@ -112,7 +121,7 @@ function output_table() {
 			const output_path = `${dataset.output_path}/${type}_ch${nChr}.txt`;
 			
 			const output_header = ["ref_pos", "ref"];
-			seq_list.slice(1).map((_, targetIdx) => output_header.push("target" + targetIdx + "_pos", "target" + targetIdx));
+			seq_list.slice(1).map((_, targetIdx) => output_header.push("target" + (1 + targetIdx) + "_pos", "target" + (1 + targetIdx)));
 			
 			const ws = fs.createWriteStream(output_path);
 			ws.write(output_header.join("\t") + "\n");
