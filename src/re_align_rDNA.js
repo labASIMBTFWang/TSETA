@@ -416,8 +416,8 @@ async function find_rDNA_use_blastn(rDNA_filePath, genomeIndex, nChr) {
 	if (!(max_send > min_sstart)) {
 		throw new Error("if (!(max_send > min_sstart)) {");
 	}
-	else {		
-		let raw_fa = readFasta(`${dataset.tmp_path}/fasta/${subject_genome_name}_${subject_chr_name}.fa`)[subject_chr_name];
+	else {
+		let raw_fa = subject_chrInfo[nChr - 1].loadSeq();
 
 		let info = {// save rDNA repeat position
 			range: [min_sstart, max_send],
