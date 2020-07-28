@@ -152,7 +152,9 @@ function execAsync(cmd, output_stdout, output_stderr) {
 	// });
 
 	return new Promise(function (resolve, reject) {
-		child_process.exec(cmd, function (err, stdout, stderr) {
+		child_process.exec(cmd, {
+			maxBuffer: 1024 * 1024 * 128,
+		}, function (err, stdout, stderr) {
 			if (output_stderr && stderr) {
 				console.error(stderr.toString());
 			}
@@ -192,7 +194,9 @@ function exec_blastn(query_file, subject_file, qstart, qend, sstart, send, _task
 	}
 
 	return new Promise(function (resolve, reject) {
-		child_process.exec(cmd, function (err, stdout, stderr) {
+		child_process.exec(cmd, {
+			maxBuffer: 1024 * 1024 * 128,
+		}, function (err, stdout, stderr) {
 			if (stderr) {
 				console.error(cmd);
 				console.error(stderr.toString());
@@ -241,7 +245,9 @@ function exec_blastn_Ex(query_file, subject_file, qstart, qend, sstart, send, ar
 	}
 
 	return new Promise(function (resolve, reject) {
-		child_process.exec(cmd, function (err, stdout, stderr) {
+		child_process.exec(cmd, {
+			maxBuffer: 1024 * 1024 * 128,
+		}, function (err, stdout, stderr) {
 			if (stderr) {
 				console.error(cmd);
 				console.error(stderr.toString());

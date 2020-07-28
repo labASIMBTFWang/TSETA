@@ -122,14 +122,9 @@ function table_to_object_list(table, header, option = { start_row: 0 }) {
 	return ret;
 }
 
-try {
-	if (module.exports) {
-		module.exports.tsv_parse = tsv_parse;
-		module.exports.table_to_object_list = table_to_object_list;
+if (typeof module == "object" && typeof module.exports == "object") {
+	module.exports.tsv_parse = tsv_parse;
+	module.exports.table_to_object_list = table_to_object_list;
 
-		module.exports._table_to_object_list = _table_to_object_list;
-	}
-}
-catch (ex) {
-	console.error(ex);
+	module.exports._table_to_object_list = _table_to_object_list;
 }

@@ -1,6 +1,7 @@
 //@ts-check
 
 const fs = require("fs");
+const Path = require("path");
 
 const VERBOSE = process.argv.indexOf("--verbose") >= 0;
 
@@ -22,7 +23,10 @@ function saveFasta(filename, fasta) {
 		}
 		else {
 			if (VERBOSE) {
-				console.warn("saveFasta:", key, "=>", fasta[key]);
+				console.error("saveFasta:", key, "=>", fasta[key]);
+				console.error(new Error("fasta null seq"));
+				console.error("fasta:", Object.keys(fasta));
+				console.error("filename:", Path.resolve(filename));
 			}
 		}
 	});

@@ -58,6 +58,15 @@ class SegRow {
 		this.ct = "";//dataset
 	}
 
+	is_4n0_markers() {
+		return (
+			this.s1 == "-" &&
+			this.s2 == "-" &&
+			this.s3 == "-" &&
+			this.s4 == "-"
+		);
+	}
+
 	isInDel() {
 		return this.indel.startsWith("indel");
 	}

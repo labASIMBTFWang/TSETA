@@ -3,7 +3,7 @@
 const fs = require("fs");
 const Path = require("path");
 
-const { argv_parse, array_groupBy } = require("./util.js");
+const { argv_parse, array_groupBy, program_log } = require("./util.js");
 const { BlastnCoord, execAsync, exec_blastn, exec_blastn_Ex, parseBlastnResults, blastn_coord, isCollide, groupByOverlap } = require("./blastn_util.js");
 const { run_mafft } = require("./run_mafft.js");
 const { readFasta, saveFasta } = require("./fasta_util.js");
@@ -19,11 +19,16 @@ const dataset = Dataset.loadFromFile(argv_dataset_path);
 
 const genome_info_list = dataset.loadGenomeInfoList();
 
-if (process.argv[1] == __filename) {
+if (fs.realpathSync(process.argv[1]) == __filename) {
 	main();
+}
+else {
+	console.log("process.argv", process.argv);
 }
 
 async function main() {
+	program_log(`${dataset.name}.log.txt`, "start");
+
 	if (argv["-chr"] != null && argv["-rDNA"] != null) {
 		let nChr = Number(argv["-chr"]);
 		let fasta_filepath = String(argv["-rDNA"] || "");
@@ -59,6 +64,8 @@ async function main() {
 	console.log("next step:", "analysis");
 	console.log("snp calling command:", `node ./src/snp_summary.js -dataset ${argv_dataset_path}`);
 	console.log("tetrad analysis command:", `node ./src/tetrad_summary.js -dataset ${argv_dataset_path} -min-co 5000`);
+
+	program_log(`${dataset.name}.log.txt`, "exit");
 }
 
 async function re_align_rdna() {
@@ -77,9 +84,20 @@ async function re_align_rdna() {
 	let rdna_data = {};
 
 	let chr_list = genome_info_list.map(genome_info => genome_info.chr_list[chrIdx].chr);
+	
+	let mafft_fa_keys = Object.keys(mafft_fa);//200416
+	chr_list.forEach((genomeChrSeqName, genomeIndex) => {
+		if (genomeChrSeqName != mafft_fa_keys[genomeIndex]) {
+			console.warn(`mafft:${mafft_fa_keys[genomeIndex]} -> info:${genomeChrSeqName}`)
+			
+			mafft_fa[genomeChrSeqName] = mafft_fa[mafft_fa_keys[genomeIndex]];
+			delete mafft_fa[mafft_fa_keys[genomeIndex]];
+		}
+	});
 
 	let promise = chr_list.map(async function (genomeChrSeqName, genomeIndex) {
 		const mafft_seq = mafft_fa[genomeChrSeqName];
+
 		chr_to_ma_posmap[genomeChrSeqName] = _chrPos_to_multialign_posMap(mafft_seq);
 		ma_to_chr_posmap[genomeChrSeqName] = _multialign_to_chrPos_posMap(mafft_seq);
 		
@@ -102,11 +120,15 @@ async function re_align_rdna() {
 
 		while (ma_seq[ma_start - 1] == "-") {
 			ma_start = ma_start - 1;
+			// console.log(seqName, ma_start, ma_seq[ma_start]);
 		}
 
 		while (ma_seq[ma_end + 1] == "-") {
 			ma_end = ma_end + 1;
+			// console.log(seqName, ma_end, ma_seq[ma_end]);
 		}
+		// console.log(seqName, ma_start, ma_seq.slice(ma_start - 1, ma_start + 2));
+		// console.log(seqName, ma_end, ma_seq.slice(ma_end - 1, ma_end + 2));
 
 		return {
 			ma_start,
@@ -144,11 +166,7 @@ async function re_align_rdna() {
 		let end = posmap[max_ma_end - 1];
 
 		if (ref1_rDNA_strand == 1) {
-			// rDNA_repeat_seq_list_map[seqName] = rd.info.repeats.map(range => {
-			// 	range = range.sort((a, b) => a - b);
-			// 	return rd.chrSeq.slice(range[0] + 1, range[1]);
-			// });
-			throw new Error("WIP");
+			throw new Error("if (ref1_rDNA_strand == 1) {");
 		}
 		else if (ref1_rDNA_strand == -1) {
 			let prev_rep_end_pos = 0;
@@ -182,6 +200,7 @@ async function re_align_rdna() {
 				let igs_seq = rd.chrSeq.slice(prev_rep_end_pos, end);
 				rDNA_repeatSeqList_genomeList[seqIndex].push(igs_seq);
 				//rDNA_last_IGS_genomeList[seqIndex] = igs_seq;
+				console.log("IGS", seqName, seqIndex, igs_seq.length);
 			}
 			// else {
 			// 	rDNA_last_IGS_genomeList[seqIndex] = null;//padding null
@@ -205,8 +224,23 @@ async function re_align_rdna() {
 	///multiAlign_groups.push(rDNA_last_IGS_genomeList);
 	let multiAlign_groups_fileNameList = multiAlign_groups.map((group, grpIdx) => {
 		let grp_fa = group.reduce((grp_fa, seq, seqIdx) => {
-			grp_fa[chr_list[seqIdx]] = seq;
-			//console.info(chr_list[seqIdx]);
+			if (seq) {
+				const seq_name = chr_list[seqIdx];
+				let out_name;
+
+				if (!rdna_data[seq_name].info.repeats[grpIdx]) {
+					// console.error(seq_name, grpIdx, rdna_data[seq_name].info.repeats.length, seq.length);
+					out_name = `${seq_name} IGS-${grpIdx} len=${seq.length}`;
+					console.info(`rDNA-${grpIdx}-IGS`, grpIdx, out_name);
+				}
+				else {
+					const { [0]: start, [1]: end } = rdna_data[seq_name].info.repeats[grpIdx];
+					out_name = `${seq_name} ${start}-${end}=${Math.abs(end - start)} len=${seq.length}`;
+					console.info("rDNA", grpIdx, out_name);
+				}
+
+				grp_fa[out_name] = seq;
+			}
 			return grp_fa;
 		}, {});
 
@@ -225,8 +259,28 @@ async function re_align_rdna() {
 			return null;//skip
 		}
 	});
+	
+	if (VERBOSE) {
+		const _tmp = Object.assign({}, rdna_data, {
+			ma_rdna_range_list,
+			min_ma_start,
+			max_ma_end,
+			ma_start_delta,
+			ref1_rDNA_strand,
+			ex_ranges,
+		});
+		fs.writeFileSync(`${dataset.output_path}/_rDNA_debug_data.json`, JSON.stringify(_tmp, function (key, value) {
+			if (key == "chrSeq") {
+				return undefined;
+			}
+			else {
+				return value;
+			}
+		}, "\t"));
+		console.log("output debug data:", `${dataset.output_path}/_rDNA_debug_data.json`);
+	}
 
-	const reAlign = false;
+	const reAlign = true;
 	await multiAlign_groups_fileNameList.filter(a => a).reduce(async function (acc, file_name, grpIdx) {
 		await acc;
 		let output_path = `${dataset.tmp_path}/mafft_${file_name}`;
@@ -268,7 +322,13 @@ async function re_align_rdna() {
 			let seq = no_align_rdna[sName];
 			if (seq) {
 				chr_list.forEach((seqName, seqIndex) => {
-					if (sName == seqName) {
+					console.log({
+						"no_align_group_list": "no_align_group_list",
+						sName,
+						seqName,
+						"seq.length": seq.length,
+					});
+					if (sName.indexOf(seqName) >= 0) {//202000721
 						newSeq_genomeList[seqIndex] += seq;
 					}
 					else {
@@ -291,6 +351,10 @@ async function re_align_rdna() {
 		max_total_length = Math.max(max_total_length, new_seq.length);
 
 		final_mafft_seq[seqName] = replace_seq_range(ma_seq, min_ma_start, max_ma_end, new_seq);
+
+		if (VERBOSE) {
+			console.log(seqName, new_seq.slice(-3));
+		}
 	});
 	
 	// console.log("rDNA multi align range", {
@@ -343,11 +407,14 @@ async function re_align_rdna() {
 		console.log("debug no output file");
 	}
 	else {
-		let output_path = `${dataset.output_path}/mafft_ch${nChr}.fa`;
+		const output_path = `${dataset.output_path}/mafft_ch${nChr}.fa`;
 
 		console.log("output:", output_path);
 
 		saveFasta(output_path, final_mafft_seq);
+		
+		const output_tmp_path = `${dataset.tmp_path}/re-align_ch${nChr}.fa`;
+		saveFasta(output_tmp_path, final_mafft_seq);
 	}
 }
 
@@ -376,23 +443,34 @@ async function find_rDNA_use_blastn(rDNA_filePath, genomeIndex, nChr) {
 
 	const subject_fa_filename = subject_chrInfo[nChr - 1].path;
 
-	let result_text = await exec_blastn_Ex(rDNA_filePath, subject_fa_filename, undefined, undefined, undefined, undefined, "-evalue 1e-5");
-	let _table = parseBlastnResults(result_text);
+	const result_text = await exec_blastn_Ex(rDNA_filePath, subject_fa_filename, undefined, undefined, undefined, undefined, "-evalue 1e-5");
+	const _table = parseBlastnResults(result_text);
 	
-	let max_len = Math.max(..._table.map(a => a.slen));
+	const max_len = Math.max(..._table.map(a => a.slen));
+	
 	/**
 	 * TODO: Check Ribosomal DNA structure, IGS 18S ITS 5.8S ITS 26S IGS
 	 * CBS1-1 min:7364, max:7835, 7835 / 7364 = 0.94
 	 * range include IGS
 	 */
-	let group = _table.filter(a => (a.slen / max_len) >= 0.9);
-
-	group = group.sort((a, b) => a.s_min - b.s_max);
-
+	const group = _table.filter(a => (a.slen / max_len) >= 0.9).sort((a, b) => a.s_min - b.s_max);
 	if (!group.every(a => a.strand == group[0].strand)) {
-		console.warn("???");
+		console.warn("found reverse rDNA");
 	}
-
+	
+	const near_bp = 1;
+	const region_list = _table.filter(aln => {
+		const [ts, te] = [aln.sstart, aln.send].sort((a, b) => a - b);
+		return group.some(rep => {
+			const [rs, re] = [rep.sstart, rep.send].sort((a, b) => a - b);
+			if (ts <= (re + near_bp) &&
+				te >= (rs - near_bp)
+			) {
+				return true;
+			}
+		});
+	})
+	
 	if (!DEBUG) {
 		fs.writeFileSync(
 			`${dataset.tmp_path}/blastn_rDNA_${subject_chr_name}.txt`,
@@ -400,8 +478,8 @@ async function find_rDNA_use_blastn(rDNA_filePath, genomeIndex, nChr) {
 		);
 	}
 
-	let min_sstart = Math.min(...group.map(a => a.s_min));
-	let max_send = Math.max(...group.map(a => a.s_max));
+	let min_sstart = Math.min(...region_list.map(a => a.s_min));
+	let max_send = Math.max(...region_list.map(a => a.s_max)) + 1;
 
 	if (VERBOSE) {
 		console.log({
@@ -428,8 +506,8 @@ async function find_rDNA_use_blastn(rDNA_filePath, genomeIndex, nChr) {
 			strand: group[0].strand,
 			chrSeq: raw_fa,
 			//seq: getSeq(raw_fa, min_sstart, max_send),
-			start: min_sstart,
-			end: max_send,
+			start: min_sstart, // rDNA region start
+			end: max_send,     // rDNA region end
 			info,
 		};
 	}

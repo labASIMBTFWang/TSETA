@@ -4,7 +4,7 @@ const fs = require("fs");
 const Path = require("path");
 
 const { inputFile, inputDirectory, inputNumber, inputText, inputSelect } = require("./interact-util.js").userInput;
-const { argv_parse, array_groupBy } = require("./util.js");
+const { argv_parse, array_groupBy, program_log } = require("./util.js");
 const { readFasta, saveFasta } = require("./fasta_util.js");
 const { GenomeDataSet, Dataset, GenomeInfo } = require("./dataset.js");
 
@@ -16,21 +16,25 @@ let has_argv_dataset_path = false;
 main();
 
 async function main() {
-	const genome_dataset = await load_or_input();
+	const dataset = await load_or_input();
 
-	if (!fs.existsSync(`${genome_dataset.output_path}/`)) {//make output directory
-		fs.mkdirSync(`${genome_dataset.output_path}/`);
+	program_log(`${dataset.name}.log.txt`, "start");
+
+	if (!fs.existsSync(`${dataset.output_path}/`)) {//make output directory
+		fs.mkdirSync(`${dataset.output_path}/`);
 	}
-	const loaded_data = make_genome_info(genome_dataset);
+	const loaded_data = make_genome_info(dataset);
 
-	explode_genome(genome_dataset, loaded_data);
+	explode_genome(dataset, loaded_data);
 	
-	const output_filename = `${encodeURIComponent(genome_dataset.name)}.json`;
-	fs.writeFileSync(output_filename, JSON.stringify(genome_dataset, null, "\t"));
+	const output_filename = `${encodeURIComponent(dataset.name)}.json`;
+	fs.writeFileSync(output_filename, JSON.stringify(dataset, null, "\t"));
 	console.log("save:", output_filename);
 
 	console.log("next step:", "detect GC content %, AT-rich blocks, centromere, telomeres");
 	console.log("command:", `node ./src/make_GC_AT_table.js -dataset ${output_filename} -w 500 -m 6`);
+	
+	program_log(`${dataset.name}.log.txt`, "exit");
 }
 
 async function load_or_input() {

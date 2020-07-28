@@ -43,8 +43,9 @@ class GenomeInfo {
 	/**
 	 * @param {Dataset} dataset
 	 * @param {string} genome_name
+	 * @param {"parental"|"progeny"} type
 	 */
-	constructor(dataset, genome_name) {
+	constructor(dataset, genome_name, type) {
 		let info = GenomeInfo.loadChrLength(dataset, genome_name);
 		
 		this.name = genome_name;
@@ -53,6 +54,9 @@ class GenomeInfo {
 
 		/** @type {{ [sChr:string]: string }} */
 		this.fasta = {};
+
+		/** @type {"parental"|"progeny"} */
+		this.type = type;
 	}
 	
 	loadFasta() {
@@ -75,7 +79,7 @@ class GenomeInfo {
 				index: Number(row.index),
 				chr: String(row.chr),//seq name in fasta
 				length: Number(row.length),
-				path: `${dataset.tmp_path}/fasta/${String(row.chr)}.fa`,
+				path: GenomeInfo.makeChrFilePath(dataset, genome_name, String(row.raw_chr_name)),
 			});
 			return data;
 		});
@@ -151,7 +155,7 @@ class GenomeDataSet {
 		/** @type {string[]} */
 		this.progeny_list = [];
 
-		/** @type {{[genomeName:string]:string}} - progeny fasta file path*/
+		/** @type {{[genomeName:string]:string}} - progeny fasta file path */
 		this.progeny = {};
 	}
 	
@@ -300,84 +304,112 @@ class Dataset extends GenomeDataSet {
 	 * @param {number} ref1_pos pos in bp
 	 */
 	isInTelomere(nChr, ref1_pos) {
-		let [[start1, end1], [start2, end2]] = this.telomere[nChr];
-		return (ref1_pos >= start1 && ref1_pos <= end1) || (ref1_pos >= start2 && ref1_pos <= end2);
+		if (this.telomere[nChr]) {
+			let [[start1, end1], [start2, end2]] = this.telomere[nChr];
+			return (ref1_pos >= start1 && ref1_pos <= end1) || (ref1_pos >= start2 && ref1_pos <= end2);
+		}
 	}	
 	/**
 	 * @param {number} nChr
 	 * @param {number} ref1_pos pos in bp
 	 */
 	isInCentromere(nChr, ref1_pos) {
-		let [start, end] = this.centromere[nChr];
-		return ref1_pos >= start && ref1_pos <= end;
+		if (this.centromere[nChr]) {
+			let [start, end] = this.centromere[nChr];
+			return ref1_pos >= start && ref1_pos <= end;
+		}
 	}
 
 	loadGenomeInfoList() {
-		return this.genomeNameList.map(gName => new GenomeInfo(this, gName));
+		return [
+			...this.parental_list.map(gName => new GenomeInfo(this, gName, "parental")),
+			...this.progeny_list.map(gName => new GenomeInfo(this, gName, "progeny")),
+		];
 	}
 	
 	loadGenomeInfoMap() {
 		/** @type {{[GenomeName:string]: GenomeInfo}} */
 		let map = {};
-		this.genomeNameList.map(gName => map[gName] = new GenomeInfo(this, gName));
+		this.parental_list.map(gName => map[gName] = new GenomeInfo(this, gName, "parental"));
+		this.progeny_list.map(gName => map[gName] = new GenomeInfo(this, gName, "progeny"));
 		return map;
+	}
+	
+	/** @type {string} */
+	get output_path() {
+		if (this.$path) {
+			const dirname = Path.dirname(this.$path);
+			return Path.join(dirname, encodeURIComponent(this.name));
+		}
+		else {
+			return encodeURIComponent(this.name);
+		}
 	}
 
 	/**
 	 * @param {string} dataset_path
+	 * @param {boolean} [reload]
 	 * @returns {Dataset}
 	 */
-	static loadFromFile(dataset_path) {
-		if (!fs.existsSync(dataset_path)) {
-			console.error({
-				error: "No such file or directory",
-				path: dataset_path,
-				absolute: Path.resolve(dataset_path),
-			});
-			throw new Error("No such file or directory");
-		}
-		let obj = JSON.parse(fs.readFileSync(dataset_path).toString());
-		let dataset = Dataset.__fromObject(obj);
-
-		/** @type {Dataset} */
-		// @ts-ignore
-		let loaded = VERBOSE ? (new Proxy(dataset, {
-			get: function (target, propertyKey, receiver) {
-				let value = Reflect.get(target, propertyKey, receiver);
-				if (value === null || value === undefined) {
-					console.log(`dataset["${propertyKey.toString()}"] =>`, value);
-					debugger;
-				}
-				return value;
-			},
-		})) : dataset;
-		
-		//loaded.gc_content = Dataset.__load_GC_content(dataset.GC_Content_filePath);
-
-		//loaded.rDNA_info = Dataset.__load_rDNA_info_fromDataset(dataset_path);
-
-		loaded.genomeNameList = [].concat(loaded.parental_list, loaded.progeny_list);
-
-		Object.defineProperty(loaded, "$path", {
-			enumerable: false,
-			writable: false,
-			configurable: false,
-			value: dataset_path,
-		});
-
-		if (VERBOSE) {
-			// @ts-ignore
-			if (globalThis.dataset instanceof Dataset) {
-				// @ts-ignore
-				console.warn("dataset loaded:", globalThis.dataset.$path);
+	static loadFromFile(dataset_path, reload = false) {
+		if (!reload && globalThis.dataset instanceof Dataset) {
+			if (VERBOSE) {
+				console.warn("from cache");
 			}
+			return globalThis.dataset;
 		}
-		Object.defineProperty(globalThis, "dataset", {
-			value: loaded,
-			configurable: true,
-		});
+		else {
+			if (!fs.existsSync(dataset_path)) {
+				console.error({
+					error: "No such file or directory",
+					path: dataset_path,
+					absolute: Path.resolve(dataset_path),
+				});
+				throw new Error("No such file or directory");
+			}
+			let obj = JSON.parse(fs.readFileSync(dataset_path).toString());
+			let dataset = Dataset.__fromObject(obj);
 
-		return loaded;
+			/** @type {Dataset} */
+			// @ts-ignore
+			let loaded = VERBOSE ? (new Proxy(dataset, {
+				get: function (target, propertyKey, receiver) {
+					let value = Reflect.get(target, propertyKey, receiver);
+					if (value === null || value === undefined) {
+						console.log(`dataset["${propertyKey.toString()}"] =>`, value);
+						debugger;
+					}
+					return value;
+				},
+			})) : dataset;
+			
+			//loaded.gc_content = Dataset.__load_GC_content(dataset.GC_Content_filePath);
+
+			//loaded.rDNA_info = Dataset.__load_rDNA_info_fromDataset(dataset_path);
+
+			loaded.genomeNameList = [].concat(loaded.parental_list, loaded.progeny_list);
+
+			Object.defineProperty(loaded, "$path", {
+				enumerable: false,
+				writable: false,
+				configurable: false,
+				value: dataset_path,
+			});
+
+			if (VERBOSE) {
+				// @ts-ignore
+				if (globalThis.dataset instanceof Dataset) {
+					// @ts-ignore
+					console.warn("dataset loaded:", globalThis.dataset.$path);
+				}
+			}
+			Object.defineProperty(globalThis, "dataset", {
+				value: loaded,
+				configurable: true,
+			});
+
+			return loaded;
+		}
 	}
 	
 	load_GC_content() {
@@ -386,6 +418,9 @@ class Dataset extends GenomeDataSet {
 			// @ts-ignore
 			let table = table_to_object_list(tsv_parse(text), ["name", "chr", "start", "end", "gc"]);
 			this.gc_content = parse_GC_Content_table(table);
+		}
+		else {
+			console.error("Not found:", this.GC_Content_filePath);
 		}
 	}
 

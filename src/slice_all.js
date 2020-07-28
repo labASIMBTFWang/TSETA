@@ -5,22 +5,46 @@ const fs = require("fs");
 const child_process = require("child_process");
 const Path = require("path");
 
-const { argv_parse, array_groupBy } = require("./util.js");
+const { argv_parse, array_groupBy, program_log } = require("./util.js");
 const { tsv_parse, table_to_object_list } = require("./tsv_parser.js");
 const { readFasta, saveFasta } = require("./fasta_util.js");
 const { BlastnCoord, execAsync, exec_blastn, parseBlastnResults, blastn_coord, isCollide } = require("./blastn_util.js");
 const { Dataset } = require("./dataset.js");
+const { loadFragIdList, MyCoord } = require("./load_frag_list.js");
 
 const argv = argv_parse(process.argv);
 
 const argv_dataset_path = String(argv["-dataset"] || "");
 const dataset = Dataset.loadFromFile(argv_dataset_path);
 
-const argv_slice_size = 10000;
-const argv_init_max_delta = argv_slice_size * 3;
-const argv_minimum_align_length = 1000;
+const argv_start_chr            = parseSafeIntegerLike(argv["--chr"], 1);
+const argv_end_chr              = parseSafeIntegerLike(argv["--chr-end"], Infinity);
+const argv_slice_size           = parseSafeIntegerLike(argv["--s"],   10000);
+const argv_add_size             = parseSafeIntegerLike(argv["--a"],   10000);
+const argv_init_delta           = parseSafeIntegerLike(argv["--d"],   argv_slice_size * 3);// local diff
+const argv_init_max_delta       = parseSafeIntegerLike(argv["--x"],   argv_init_delta * 1);// telomere diff
+const argv_minimum_align_length = parseSafeIntegerLike(argv["--m"],   1000);
+
+/**
+ * @param {any} value 
+ */
+function parseSafeIntegerLike(value, default_value) {
+	let num = Number(value);
+	if (Number.isFinite(num) && !Number.isNaN(num) && Number.isSafeInteger(num)) {
+		return num;
+	}
+	else {
+		return default_value;
+	}
+}
 
 const VERBOSE = !!argv["--verbose"];
+
+if (VERBOSE) {
+	console.log({
+		argv_slice_size, argv_add_size, argv_init_delta, argv_init_max_delta, argv_minimum_align_length,
+	});
+}
 
 const genome_info_list = dataset.loadGenomeInfoList();
 
@@ -28,11 +52,13 @@ if (!fs.existsSync(`${dataset.tmp_path}/ma_util_blastn`)) {
 	fs.mkdirSync(`${dataset.tmp_path}/ma_util_blastn`);
 }
 
-if (process.argv[1] == __filename) {
+if (fs.realpathSync(process.argv[1]) == __filename) {
 	main();
 }
 
 async function main() {
+	program_log(`${dataset.name}.log.txt`, "start");
+
 	if (!fs.existsSync(`${dataset.tmp_path}/seq_frag`)) {
 		fs.mkdirSync(`${dataset.tmp_path}/seq_frag`);
 	}
@@ -40,7 +66,17 @@ async function main() {
 		fs.mkdirSync(`${dataset.tmp_path}/meta`);
 	}
 
-	for (let nChr = 1; nChr <= genome_info_list[0].chr_list.length; ++nChr) {
+	const start_chr = Math.max(1, argv_start_chr);
+	const end_chr = Math.min(genome_info_list[0].chr_list.length, argv_end_chr);
+
+	if (VERBOSE) {
+		console.log({
+			start_chr,
+			end_chr,
+		});
+	}
+
+	for (let nChr = start_chr; nChr <= end_chr; ++nChr) {
 		if (VERBOSE) {
 			console.log("start ch", nChr);
 		}
@@ -51,7 +87,7 @@ async function main() {
 			const count = await multi_coord(nChr);
 
 			if (VERBOSE) {
-				console.log("number of fragment", count);
+				console.log("number of fragments", count);
 			}
 		}
 		catch (ex) {
@@ -63,6 +99,8 @@ async function main() {
 
 	console.log("next step:", "execute MAFFT");
 	console.log("command:", `node ./src/run_mafft.js -dataset ${argv_dataset_path} --mafft-algorithm localpair --mafft-maxiterate 1000 --mafft-thread 20`);
+
+	program_log(`${dataset.name}.log.txt`, "exit");
 }
 
 /**
@@ -95,6 +133,14 @@ async function multi_coord(nChr) {
 
 	let _global_search_align, _local_overlap_align;
 	let pos_search_start_list = dataset.genomeNameList.map(a => 1);
+
+	/**
+	 * after: after slice centromere, once("after", add centeromere tag), remove centro_status
+	 * @type {"before"|"in"|"after"}
+	 */
+	let centro_status = "before";
+
+	const [centro_start, centro_end] = dataset.centromere[nChr];
 
 	for (; search_start <= chr_info_list[0].length && search_end <= chr_info_list[0].length; ++fragId) {
 		try {
@@ -191,7 +237,7 @@ async function multi_coord(nChr) {
 					// }
 
 					search_end = Math.min(search_end + argv_slice_size, chr_info_list[0].length);//inc search range
-					max_delta += argv_slice_size;
+					max_delta += argv_add_size;
 					continue;
 				}
 				for (let i = 1; i < chr_name_list.length; ++i) {
@@ -211,7 +257,7 @@ async function multi_coord(nChr) {
 					// 	});
 					// }
 					search_end = Math.min(search_end + argv_slice_size, chr_info_list[0].length);//inc search range
-					max_delta += argv_slice_size;
+					max_delta += argv_add_size;
 					if (VERBOSE) {
 						console.log("max_delta", max_delta);
 					}
@@ -289,7 +335,8 @@ async function multi_coord(nChr) {
 					}
 
 					const a_list = match_results.best_match.map((coord, i) => chr_seq_list[i][coord.send - 1]);
-					if (a_list.slice(2).every(a => a_list[1] == a)) {
+					const a1_s = [...a_list[1]];
+					if (a_list.slice(2).every(a => a1_s.every((v, i) => v == a[i]))) {
 						pos_start_list[0] = search_start;
 						pos_end_list[0] = min_qend;
 						break;
@@ -303,7 +350,7 @@ async function multi_coord(nChr) {
 				}
 				if (max_iterate <= 0) {
 					search_end = Math.min(search_end + argv_slice_size, chr_info_list[0].length);
-					max_delta += argv_slice_size;
+					max_delta += argv_add_size;
 					if (VERBOSE) {
 						console.log("max_delta", max_delta);
 					}
@@ -315,24 +362,75 @@ async function multi_coord(nChr) {
 				const extract_seq_list = output_coord_list.map(([start, end], i) => chr_seq_list[i].slice(start, end));
 				const extract_length_list = extract_seq_list.map(seq => seq.length);
 
-				{
-					const coord_text_1 = fragId + "\tstart\t" + [search_start, ...match_results.best_match.map((match, i) => pos_start_list[i])].join("\t|\t");
-					const coord_text_2 = fragId + "\t  end\t" + [search_end,   ...match_results.best_match.map((match, i) => match.send)].join("\t|\t");
-					if (VERBOSE) {
-						console.log(coord_text_1);
-						console.log(coord_text_2);
+				if (centro_status) {
+					const { [0]: ref1_start_pos, [1]: ref1_end_pos } = output_coord_list[0];
+
+					const over_centromere = ref1_start_pos <= centro_start && ref1_end_pos >= centro_end;
+					if (centro_status == "before" && over_centromere) {
+						if (nChr != 6) {
+							console.log({
+								ref1_start_pos, centro_start, ref1_end_pos, centro_end
+							});
+							throw new Error(nChr + "over_centromere");
+						}
+						centro_status = "in";
+						console.log("v3", `over_centromere -> centro_status = "in"`);
 					}
-					fs.writeFileSync(`${dataset.tmp_path}/multi_coord_ch${nChr}.txt`, coord_text_1 + "\n" + coord_text_2 + "\n", { flag: "a" });
+
+					if (centro_status == "before") {
+						const is_centromere = ref1_end_pos >= centro_start;
+						if (is_centromere) {
+							console.log("v3", "before centromere");
+							console.log({
+								ref1_start_pos, ref1_end_pos,
+								centro_start, centro_end,
+							});
+							centro_status = "in";
+						}
+					}
+					else if (centro_status == "in") {
+						console.log("v3", "in centromere");
+						console.log({
+							ref1_start_pos, ref1_end_pos,
+							centro_start, centro_end,
+						});
+
+						const leave_centromere = ref1_end_pos >= centro_end;
+						if (leave_centromere) {
+							centro_status = "after";
+							console.log("v3", "after centromere");
+						}
+						else {
+							continue;//skip centromere
+						}
+					}
+					// else if (centro_status == "after") {
+					// 	// nothing
+					// }
 				}
 
 				const min_len = Math.min(...extract_length_list);
 				const max_len = Math.max(...extract_length_list);
+
+				{
+					const coord_text_1 = fragId + "\tstart\t" + [search_start, ...match_results.best_match.map((match, i) => pos_start_list[i])].join("\t|\t") + "\t" + (centro_status == "after" ? "centromere" : "");
+					const coord_text_2 = fragId + "\t  end\t" + [search_end,   ...match_results.best_match.map((match, i) => match.send)].join("\t|\t") + "\t" + (centro_status == "after" ? "centromere" : "");
+					if (VERBOSE) {
+						console.log(coord_text_1);
+						console.log(coord_text_2);
+					}
+					
+					fs.writeFileSync(`${dataset.tmp_path}/multi_coord_ch${nChr}.txt`, coord_text_1 + "\n" + coord_text_2 + "\n", { flag: "a" });
+				}
+
 				fs.writeFileSync(`${dataset.tmp_path}/frag_length_ch${nChr}.txt`, [
 					fragId,
 					...extract_length_list,
 					...extract_length_list.map(len => (len / max_len).toFixed(2)),
 					min_len, max_len,
 					(min_len / max_len).toFixed(2),
+					"centromere_" + centro_status == "after",
+					"remove_" + centro_status == "after",
 				].join("\t") + "\n", { flag: "a" });
 
 				fs.writeFileSync(`${dataset.tmp_path}/meta/meta_ch${nChr}_${fragId}.json`, JSON.stringify({
@@ -341,12 +439,9 @@ async function multi_coord(nChr) {
 					match_group: match_results.all_match_groups,
 					coord: output_coord_list,
 					length: extract_length_list,
+					centromere: centro_status == "after",
+					remove: centro_status == "after",
 				}, null, "\t"));
-				
-				const fa_seq_name_list = chr_name_list.map((chrName, i) => {
-					const [start, end] = output_coord_list[i];// charAt
-					return `${chrName} ${start + 1}-${end} ${extract_seq_list[i].length}`;
-				});
 				
 				{
 					let cc = extract_seq_list.map(a => a.slice(-2));
@@ -357,19 +452,29 @@ async function multi_coord(nChr) {
 						debugger;
 					}
 				}
-
-
-				const output_fasta_file_name = `${dataset.tmp_path}/seq_frag/ch${nChr}_${fragId}.fa`;
 				
-				if (VERBOSE) {
-					console.log(output_fasta_file_name);
+				{
+					const fa_seq_name_list = chr_name_list.map((chrName, i) => {
+						const [start, end] = output_coord_list[i];// charAt
+						return `${chrName} ${start + 1}-${end} ${extract_seq_list[i].length}`;
+					});
+
+					const output_fasta_file_name = `${dataset.tmp_path}/seq_frag/ch${nChr}_${fragId}.fa`;
+					
+					if (VERBOSE) {
+						console.log(output_fasta_file_name);
+					}
+
+					saveFasta(output_fasta_file_name, fa_seq_name_list.reduce((fasta, seqName, i) => {
+						fasta[seqName] = extract_seq_list[i];
+						return fasta;
+					}, {}));
+				}
+				
+				if (centro_status == "after") {
+					centro_status = null;
 				}
 
-				saveFasta(output_fasta_file_name, fa_seq_name_list.reduce((fasta, seqName, i) => {
-					fasta[seqName] = extract_seq_list[i];
-					return fasta;
-				}, {}));
-				
 				//search next range
 				search_start = Math.min(pos_end_list[0] + 1, chr_info_list[0].length);
 				search_end = Math.min(search_start + argv_slice_size, chr_info_list[0].length);//
@@ -383,7 +488,7 @@ async function multi_coord(nChr) {
 					break;
 				}
 
-				max_delta = argv_init_max_delta;
+				max_delta = argv_init_delta;
 			}
 			else {
 				//search next range
@@ -402,7 +507,7 @@ async function multi_coord(nChr) {
 					});//copy value
 				}
 				search_end = Math.min(search_end + argv_slice_size, chr_info_list[0].length);//inc search range
-				max_delta += argv_slice_size;
+				max_delta += argv_add_size;
 				
 				if (VERBOSE) {
 					console.log("not found");
@@ -505,6 +610,24 @@ async function multi_coord(nChr) {
 				fasta[seqName] = extract_seq_map[seqName];
 				return fasta;
 			}, {}));
+		}
+		fs.writeFileSync(`${dataset.tmp_path}/meta/meta_ch${nChr}_${fragId}.json`, JSON.stringify({
+			id: fragId,
+			best_match: [],
+			match_group: [],
+			coord: output_coord_list,
+			length: extract_length_list,
+		}, null, "\t"));
+		{
+			const min_len = Math.min(...extract_length_list);
+			const max_len = Math.max(...extract_length_list);
+			fs.writeFileSync(`${dataset.tmp_path}/frag_length_ch${nChr}.txt`, [
+				fragId,
+				...extract_length_list,
+				...extract_length_list.map(len => (len / max_len).toFixed(2)),
+				min_len, max_len,
+				(min_len / max_len).toFixed(2),
+			].join("\t") + "\n", { flag: "a" });
 		}
 	}
 	return fragId;

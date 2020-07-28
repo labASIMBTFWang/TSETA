@@ -33,6 +33,7 @@ const input_fasta = readFasta(argv_input);
 const dataset = Dataset.loadFromFile(argv_dataset_path);
 dataset.load_GC_content();
 dataset.load_rDNA_info();
+let gInfoMap = dataset.loadGenomeInfoMap();
 
 
 main();
@@ -47,8 +48,8 @@ function main() {
 	let seq_list = [];
 	let seq_id_list = Object.keys(input_fasta);
 	seq_id_list.forEach((id, i) => seq_list[i] = input_fasta[id]);
-
-	let analysis_options = {
+	
+	const analysis_options = {
 		get nChr() { return argv_output_chr },
 		get rDNA_info() { return dataset.rDNA_info; },
 		get show_rDNA_snp() { return false; },
@@ -57,7 +58,7 @@ function main() {
 		get mode() { return dataset.mode; },
 	};
 	initAnalyser(analysis_options);
-	let data = loadCmpData(seq_list, analysis_options);
+	const data = loadCmpData(seq_list, analysis_options);
 
 	function clear_bits(input) {
 		let bits = input & data.ColorID.mask;
@@ -91,10 +92,22 @@ function main() {
 		row.chr = argv_output_chr;
 		row.pos = data.pos_ref1_uint32array[cmp.pos];//cmp.ref1_pos;//
 
-		row.a = clear_bits(cmp[2]);
-		row.b = clear_bits(cmp[3]);
-		row.c = clear_bits(cmp[4]);
-		row.d = clear_bits(cmp[5]);
+		if (cmp.is_rip) {
+			row.a = s1 == r1 ? 0 : (s1 == r2 ? 1 : -1);
+			row.b = s2 == r1 ? 0 : (s2 == r2 ? 1 : -1);
+			row.c = s3 == r1 ? 0 : (s3 == r2 ? 1 : -1);
+			row.d = s4 == r1 ? 0 : (s4 == r2 ? 1 : -1);
+		}
+		else {
+			row.a = clear_bits(cmp[2]);
+			row.b = clear_bits(cmp[3]);
+			row.c = clear_bits(cmp[4]);
+			row.d = clear_bits(cmp[5]);
+		}
+		if (cmp.pos == 1113790) {
+			console.log(row);
+			console.log(cmp);
+		}
 		if (row.a < 0 || row.b < 0 || row.c < 0 || row.d < 0) {
 			return null;
 		}

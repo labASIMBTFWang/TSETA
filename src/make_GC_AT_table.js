@@ -3,7 +3,7 @@
 
 const fs = require("fs");
 
-const { argv_parse, array_groupBy } = require("./util.js");
+const { argv_parse, array_groupBy, program_log } = require("./util.js");
 const { Dataset, GenomeInfo } = require("./dataset.js");
 const { GC_Content_Data } = require("./GC_content_util.js");
 const { readFasta } = require("./fasta_util.js");
@@ -12,6 +12,9 @@ const argv = argv_parse(process.argv);
 
 const argv_window_size = Number(argv["--window"] || argv["-w"]) | 0;
 const argv_AT_island_GC_minus = (Number(argv["--minus"] || argv["-m"]) | 0);//6 // AT_island => gc(window) <= (gc(all) - minus)
+
+const argv_no_telo = !!argv["--no-telo"];
+const argv_no_centro = !!argv["--no-centro"];
 
 const VERBOSE = !!argv["--verbose"];
 
@@ -23,15 +26,28 @@ C = [...seq_list[0]].filter(a => a != "-").slice(0, 5000).filter(a => a == "C").
 (G + C) / (A + T + G + C) * 100
  */
 
-if (VERBOSE) {
-	console.log({
-		argv_AT_island_GC_minus, argv_window_size,
-	});
+class AT_island_Data {
+	constructor() {
+		this.chr = 0;
+		this.start = 0;
+		this.end = 0;
+		this.length = 0;
+	}
 }
 
-{
+main();
+
+function main() {
+	if (VERBOSE) {
+		console.log({
+			argv_AT_island_GC_minus, argv_window_size,
+		});
+	}
+
 	const argv_dataset_path = String(argv["-dataset"] || "");
 	const dataset = Dataset.loadFromFile(argv_dataset_path);
+
+	program_log(`${dataset.name}.log.txt`, "start");
 	
 	const genome_info_list = dataset.loadGenomeInfoList();
 
@@ -43,12 +59,12 @@ if (VERBOSE) {
 
 	const ref1_chr_list = genome_info_list[0];
 
-	let { all_gc_table: ref1_all_gc_table, all_island_table: ref1_all_island_table } = make_table(ref1_chr_list, ref1_name);
+	let { all_gc_table: ref1_all_gc_table, all_island_table: ref1_all_island_table } = make_table(ref1_chr_list);
 	
 	let ref2_all_gc_table = null;
 	if (ref2_name) {
 		const ref2_chr_list = genome_info_list[1];
-		let { all_gc_table: _ref2_all_gc_table, all_island_table: _ref2_all_island_table } = make_table(ref2_chr_list, ref2_name);
+		let { all_gc_table: _ref2_all_gc_table, all_island_table: _ref2_all_island_table } = make_table(ref2_chr_list);
 		
 		_ref2_all_gc_table.forEach(group => {
 			group.forEach(gc => {
@@ -101,60 +117,61 @@ if (VERBOSE) {
 		fs.writeFileSync(at_island_filepath, text_all_island_list);
 	}
 
-	{
-		let ref1_cen = [];
-		let ref1_tel = [];
-		
-		for (let nChr = 1; nChr <= genome_info_list[0].chr_list.length; ++nChr) {
-			const chrIdx = nChr - 1;
-			const AT_desc_list = [...ref1_all_island_table[chrIdx]].sort((a, b) => b.length - a.length);
-			
-			const cen_range = AT_desc_list[0];
-			{
-				let [at1, at2] = [AT_desc_list[0], AT_desc_list[1]].sort((a, b) => a.start - b.start);
-				//console.log("ch", nChr, "at1, 500bp, at2", at1.start, at1.end, at2.start, at2.end);
-				// 合併 2 個鄰近的 AT-island，2 個 AT-island 間最多能有 1 個 window (QM6a ChIV: 1482500-1559500,1560000-1659000)
-				if ((at2.start - at1.end) <= Math.abs(at1.end - at1.start)) {
-					cen_range.start = at1.start;
-					cen_range.end = at2.end;
-					cen_range.length = at2.end - at1.start;
-				}
-			}
-			//console.log("cen", cen_range.start, cen_range.end, cen_range.length);
+	dataset.all_centromere = genome_info_list.map(_ => []);
+	dataset.all_telomere = genome_info_list.map(_ => []);
 
-			ref1_cen.push(cen_range);
-			
-			let tel1 = Object.assign({}, ref1_all_island_table[chrIdx][0], {
-				start: 1,
-			});
-			
-			let tel2 = Object.assign({}, ref1_all_island_table[chrIdx][ref1_all_island_table[chrIdx].length - 1], {
-				end: ref1_chr_list.chr_list[ref1_all_island_table[chrIdx][ref1_all_island_table[chrIdx].length - 1].chr - 1].length,
-			});
-
-			ref1_tel.push([tel1, tel2]);
-		}
-
-		// {
-		// 	const text_cent = ref1_cen.map(a => [a.chr, a.start, a.end].join("\t")).join("\n");
-		// 	fs.writeFileSync(`${dataset.output_path}/${ref1_name}_centromere.txt`, text_cent);
-		// 	console.log("cen", text_cent);
-		// }
-		
-		// {
-		// 	const text_tel = ref1_tel.map(([a, b]) => [a.chr, a.start, a.end, b.start, b.end].join("\t")).join("\n");
-		// 	fs.writeFileSync(`${dataset.output_path}/${ref1_name}_telomere.txt`, text_tel);
-		// 	console.log("tel", text_tel);
-		// }
-
+	const {
+		centro: ref1_cen,
+		telo: ref1_tel
+	} = find_centro_telo(genome_info_list, ref1_all_island_table, ref1_chr_list);
+	//
+	if (!argv_no_centro) {
 		ref1_cen.forEach(a => {
 			dataset.centromere[a.chr] = [a.start, a.end];
+			dataset.all_centromere[0][a.chr] = [a.start, a.end];
 		});
+	}
+	if (!argv_no_telo) {
 		ref1_tel.forEach(([a, b]) => {
 			dataset.telomere[a.chr] = [
 				[a.start, a.end],
 				[b.start, b.end],
 			];
+			dataset.all_telomere[0][a.chr] = [
+				[a.start, a.end],
+				[b.start, b.end],
+			];
+		});
+		console.warn("argv_no_telo:", argv_no_telo);
+	}
+
+	{
+		genome_info_list.slice(1).forEach((chr_list, _ssIdx) => {
+			const sIdx = _ssIdx + 1;
+			
+			const { all_island_table } = make_table(chr_list);
+			all_island_table.forEach(group => {
+				group.forEach(island => {
+					island.chr = chr_list.chr_map[island.chr].index;
+					island.start = island.start + 1;
+					island.end = island.end + 1;
+				});
+			});
+			const { centro, telo } = find_centro_telo(genome_info_list, all_island_table, chr_list);
+			//
+			if (!argv_no_centro) {
+				centro.forEach(a => {
+					dataset.all_centromere[sIdx][a.chr] = [a.start, a.end];
+				});
+			}
+			if (!argv_no_telo) {
+				telo.forEach(([a, b]) => {
+					dataset.all_telomere[sIdx][a.chr] = [
+						[a.start, a.end],
+						[b.start, b.end],
+					];
+				});
+			}
 		});
 	}
 
@@ -169,22 +186,74 @@ if (VERBOSE) {
 	
 	console.log("next step:", "Sequential (5' to 3') slicing of the query chromosome into smaller fragments (~10 kb)");
 	console.log("command:", `node ./src/slice_all.js -dataset ${argv_dataset_path}`);
+	
+	program_log(`${dataset.name}.log.txt`, "exit");
 }
 
-class AT_island_Data {
-	constructor() {
-		this.chr = 0;
-		this.start = 0;
-		this.end = 0;
-		this.length = 0;
+function find_centro_telo(genome_info_list, all_island_table, chr_list) {
+	let centro = [];
+	let telo = [];
+
+	for (let nChr = 1; nChr <= genome_info_list[0].chr_list.length; ++nChr) {
+		const chrIdx = nChr - 1;
+		const AT_desc_list = [...all_island_table[chrIdx]].sort((a, b) => b.length - a.length);
+
+		if (!argv_no_centro) {
+			const cen_range = AT_desc_list[0];
+			try {
+				let [at1, at2] = [AT_desc_list[0], AT_desc_list[1]].sort((a, b) => a.start - b.start);
+				//console.log("ch", nChr, "at1, 500bp, at2", at1.start, at1.end, at2.start, at2.end);
+				// 合併 2 個鄰近的 AT-island，2 個 AT-island 間最多能有 1 個 window (QM6a ChIV: 1482500-1559500,1560000-1659000)
+				if ((at2.start - at1.end) <= Math.abs(at1.end - at1.start)) {
+					cen_range.start = at1.start;
+					cen_range.end = at2.end;
+					cen_range.length = at2.end - at1.start;
+				}
+			}
+			catch (ex) {
+				console.error({
+					ex,
+					AT_desc_list
+				});
+			}
+			//console.log("cen", cen_range.start, cen_range.end, cen_range.length);
+			if (cen_range) {
+				centro.push(cen_range);
+			}
+			else {
+				centro.push(new AT_island_Data());
+			}
+		}
+
+		if (!argv_no_telo) {
+			try {
+				let tel1 = Object.assign({}, all_island_table[chrIdx][0], {
+					start: 1,
+				});
+
+				let tel2 = Object.assign({}, all_island_table[chrIdx][all_island_table[chrIdx].length - 1], {
+					end: chr_list.chr_list[all_island_table[chrIdx][all_island_table[chrIdx].length - 1].chr - 1].length,
+				});
+
+				telo.push([tel1, tel2]);
+			}
+			catch (ex) {
+				console.error(`nChr: ${nChr}`, ex);
+				telo.push([0, 0]);
+			}
+		}
 	}
+	
+	return {
+		centro, telo,
+	};
 }
 
 /**
  * 
  * @param {GenomeInfo} genome_info
  */
-function make_table(genome_info, output_prifix) {
+function make_table(genome_info) {
 	console.log("input:", genome_info.name);
 
 	const input_seq = genome_info.loadFasta();

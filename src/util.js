@@ -171,7 +171,22 @@ function _execAsync(cmd, stdout_fname = null, stderr_fname = null) {
 	});
 }
 
+/**
+ * @param {string} file_name
+ * @param {string} status
+ * @param {any[]} [array_data]
+ */
+function program_log(file_name, status, array_data) {
+	const date = new Date();
+	fs.writeFileSync(file_name, `${[
+		status,
+		date.toUTCString(),
+		process.argv.join(" "),
+		...array_data,
+	].join("\t")}\n`, { flag: "a" });
+}
 
+module.exports.program_log = program_log;
 
 module.exports.array_groupBy = array_groupBy;
 module.exports.execAsync = execAsync;

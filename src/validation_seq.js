@@ -35,7 +35,7 @@ class ErrInfo {
 }
 
 let VERBOSE = false;
-if (process.argv[1] == __filename) {
+if (fs.realpathSync(process.argv[1]) == __filename) {
 	VERBOSE = true;
 	main();
 }
@@ -102,7 +102,7 @@ function validation_seq(seq_id_list, fa, nChr) {
 				else {
 					const ext = 10;
 					console.log(s_name, "error in:", (i + 1), "raw:", to_raw_pos);
-					console.log("in ", fa[name].slice(i - ext, i + 20));
+					console.log("in ", fa[name].slice(i - ext, i + ext * 2));
 					console.log("raw", raw_seq[idx].slice(to_raw_pos - ext, to_raw_pos + ext * 2));
 					let mark = [...fa[name].slice(i - ext, i)].fill(".").join("") + "^";
 					console.log("mrk", mark);
