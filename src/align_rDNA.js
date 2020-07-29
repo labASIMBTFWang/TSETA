@@ -57,7 +57,9 @@ async function main() {
 	}
 	finally {
 		fs.writeFileSync(argv_dataset_path, JSON.stringify(dataset, null, "\t"));
-		console.log("save:", argv_dataset_path);
+		if (VERBOSE) {
+			console.log("save:", argv_dataset_path);
+		}
 	}
 
 	console.log("next step:", "analysis");
@@ -159,10 +161,11 @@ async function align_rdna() {
 				end,
 			};
 		});
-
-		console.log({
-			frag_start,
-		});
+		if (VERBOSE) {
+			console.log({
+				frag_start,
+			});
+		}
 
 		/*
 		 step 1: *
@@ -184,26 +187,30 @@ async function align_rdna() {
 			const splice_end = range.start - 1;
 			const length = splice_end - prev_end + 1;
 
-			console.log({
-				range_idx,
-				prev_end,
-				splice_end,
-			});
+			if (VERBOSE) {
+				console.log({
+					range_idx,
+					prev_end,
+					splice_end,
+				});
+			}
 
 			const frag_a = concat_raw_seq_aa.splice(0, length);
 			const frag_seq = frag_a.join("");
 			
 			if (length <= 0) {
-				console.log({
-					"splice": "0 to rDNA.start - 1",
-					"length = splice_end - prev_end + 1": length,
-					"frag_a.length": frag_a.length,
-					"frag_seq.length": frag_seq.length,
-					genomeChrSeqName,
-					genomeIndex,
-					prev_end,
-					range,
-				});
+				if (VERBOSE) {
+					console.log({
+						"splice": "0 to rDNA.start - 1",
+						"length = splice_end - prev_end + 1": length,
+						"frag_a.length": frag_a.length,
+						"frag_seq.length": frag_seq.length,
+						genomeChrSeqName,
+						genomeIndex,
+						prev_end,
+						range,
+					});
+				}
 			}
 
 			if (!extract_raw_seq[genomeChrSeqName]) {
@@ -224,26 +231,30 @@ async function align_rdna() {
 			const splice_end = range.end;
 			const length = splice_end - prev_end + 1;
 
-			console.log({
-				range_idx: repeats.length,
-				prev_end,
-				splice_end,
-			});
-		
+			if (VERBOSE) {
+				console.log({
+					range_idx: repeats.length,
+					prev_end,
+					splice_end,
+				});
+			}
+
 			const frag_a = concat_raw_seq_aa.splice(0, length);
 			const frag_seq = frag_a.join("");
 		
 			if (length <= 0) {
-				console.log({
-					"splice": "rDNA.start to rDNA.end",
-					"length = splice_end - prev_end + 1": length,
-					"frag_a.length": frag_a.length,
-					"frag_seq.length": frag_seq.length,
-					genomeChrSeqName,
-					genomeIndex,
-					prev_end,
-					range,
-				});
+				if (VERBOSE) {
+					console.log({
+						"splice": "rDNA.start to rDNA.end",
+						"length = splice_end - prev_end + 1": length,
+						"frag_a.length": frag_a.length,
+						"frag_seq.length": frag_seq.length,
+						genomeChrSeqName,
+						genomeIndex,
+						prev_end,
+						range,
+					});
+				}
 			}
 		
 			if (!extract_raw_seq[genomeChrSeqName]) {
@@ -257,10 +268,12 @@ async function align_rdna() {
 		// rDNA.end to region.length
 		const last_frag_a = concat_raw_seq_aa.splice(0);
 		const last_frag_seq = last_frag_a.join("");
-		console.log(genomeChrSeqName, "last_frag_seq.length", last_frag_seq.length);
+		if (VERBOSE) {
+			console.log(genomeChrSeqName, "last_frag_seq.length", last_frag_seq.length);
+		}
 		extract_raw_last_seq[genomeChrSeqName] = last_frag_seq;
 
-		{
+		if (VERBOSE) {
 			const n_frag = extract_raw_seq[genomeChrSeqName].length;
 			console.log(genomeChrSeqName, "n_frag", n_frag);
 		}
@@ -288,14 +301,9 @@ async function align_rdna() {
 	});
 	fa_groups.push(chr_list.map(seq_name => extract_raw_last_seq[seq_name]));
 
-	console.log(fa_groups.map(s => s.map(ss => ss ? ss.length : null)));
-
-	// console.log("pause");
-	// await new Promise((resolve, reject) => {
-	// 	process.stdin.once("data", data => {
-	// 		resolve(data);
-	// 	});
-	// });
+	if (VERBOSE) {
+		console.log(fa_groups.map(s => s.map(ss => ss ? ss.length : null)));
+	}
 
 	// save frag
 
@@ -333,20 +341,24 @@ async function align_rdna() {
 		const input_path = `${dataset.tmp_path}/seq_frag/${file_name}`;
 		const output_path = `${dataset.tmp_path}/mafft_seq_frag/mafft_${file_name}`;
 
-		console.log({ grpIdx });
-		console.log(fa_groups[grpIdx].length);
-		console.log("fa_groups->length", fa_groups[grpIdx].map(s => s ? s.length : null));
-		{
-			chr_list.forEach((seq_name, seq_idx) => {
-				if (fa_groups[grpIdx][seq_idx]) {
-					console.log(seq_name, fa_groups[grpIdx][seq_idx] ? fa_groups[grpIdx][seq_idx].length : null);
-				}
-			});
+		if (VERBOSE) {
+			console.log({ grpIdx });
+			console.log(fa_groups[grpIdx].length);
+			console.log("fa_groups->length", fa_groups[grpIdx].map(s => s ? s.length : null));
+			{
+				chr_list.forEach((seq_name, seq_idx) => {
+					if (fa_groups[grpIdx][seq_idx]) {
+						console.log(seq_name, fa_groups[grpIdx][seq_idx] ? fa_groups[grpIdx][seq_idx].length : null);
+					}
+				});
+			}
 		}
 
 		const n_fa_seq = fa_groups[grpIdx].filter(a => a).length;
-		console.log("n_fa_seq", n_fa_seq);
-
+		if (VERBOSE) {
+			console.log("n_fa_seq", n_fa_seq);
+		}
+		
 		if (n_fa_seq >= 2) {
 			try {
 				return await run_mafft(input_path, output_path, dataset.mafft.algorithm, nChr, `rDNA_${(grpIdx + 1)}`, reAlign);
@@ -369,7 +381,9 @@ async function align_rdna() {
 			// 	}
 			// }
 			// else {
-				console.log("copy file:", output_path);
+				if (VERBOSE) {
+					console.log("copy file:", output_path);
+				}
 				await fs.promises.copyFile(input_path, output_path);
 			// }
 		}
@@ -426,24 +440,33 @@ async function align_rdna() {
 
 	const new_frag_list = all_chr_frag_list[nChr].slice(0);// clone
 
-	console.log("o frags", all_chr_frag_list[nChr].length);
-	
+	if (VERBOSE) {
+		console.log("o frags", all_chr_frag_list[nChr].length);
+	}
+
 	// modify
 	const splice_start = rDNA_raw_frag_idx_list[0];
 	new_frag_list.splice(splice_start, rDNA_raw_frag_idx_list.length, ...new_rDNA_frags);
 
-	console.log("n frags", new_frag_list.length);
+	if (VERBOSE) {
+		console.log("n frags", new_frag_list.length);
 
-	console.log("r frags", new_rDNA_frags.length);
-
-	const final_mafft_seq = join_chr_frag(nChr, new_frag_list, `${dataset.output_path}/mafft_ch${nChr}.fa`, { padding: true, chr_list: chr_list });
+		console.log("r frags", new_rDNA_frags.length);
+	}
 	
+	const output_tmp_path = `${dataset.tmp_path}/re-align_ch${nChr}.fa`;
+	const output_path = `${dataset.output_path}/mafft_ch${nChr}.fa`;
+	const final_mafft_seq = join_chr_frag(nChr, new_frag_list, output_tmp_path, { padding: true, chr_list: chr_list });
+	await fs.promises.copyFile(output_tmp_path, output_path);
+
 	const rDNA_data_list = chr_list.map(function (seqName, seqIndex) {
 		const data = rdna_data[seqName];
 
 		//rebuild pos map
 		{
-			console.log(seqName, Object.keys(final_mafft_seq));
+			if (VERBOSE) {
+				console.log(seqName, Object.keys(final_mafft_seq));
+			}
 
 			const posmap = chrPos_to_multialign_posMap(final_mafft_seq[seqName]);
 

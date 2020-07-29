@@ -72,7 +72,9 @@ class MyCoord {
 function loadFragIdList(dataset) {
 	const exist_path = `${dataset.output_path}/frag_list.json`;
 	if (fs.existsSync(exist_path)) {
-		console.log("loadFragIdList form", exist_path)
+		if (VERBOSE) {
+			console.log("loadFragIdList form", exist_path);
+		}
 		return JSON.parse(fs.readFileSync(exist_path).toString());
 	}
 	const merge_centromere = false;

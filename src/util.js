@@ -182,7 +182,7 @@ function program_log(file_name, status, array_data) {
 		status,
 		date.toUTCString(),
 		process.argv.join(" "),
-		...array_data,
+		...(array_data && array_data[Symbol.iterator] ? array_data : []),
 	].join("\t")}\n`, { flag: "a" });
 }
 

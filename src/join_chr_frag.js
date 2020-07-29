@@ -45,7 +45,9 @@ function join_chr_frag(nChr, coord_list, output_name, options = { padding: false
 					const ori_len = seq.length;
 					seq = seq.padEnd(max_len, "-");
 					if (seq.length != ori_len) {
-						console.log(in_filename, seq_name, "padEnd", ori_len, "->", seq.length);
+						if (VERBOSE) {
+							console.log(in_filename, seq_name, "padEnd", ori_len, "->", seq.length);
+						}
 					}
 				}
 
