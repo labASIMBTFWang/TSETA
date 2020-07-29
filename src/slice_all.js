@@ -134,13 +134,15 @@ async function multi_coord(nChr) {
 	let _global_search_align, _local_overlap_align;
 	let pos_search_start_list = dataset.genomeNameList.map(a => 1);
 
+	const has_centromere = dataset.centromere && dataset.centromere[nChr];
+
 	/**
 	 * after: after slice centromere, once("after", add centeromere tag), remove centro_status
 	 * @type {"before"|"in"|"after"}
 	 */
-	let centro_status = "before";
+	let centro_status = has_centromere ? "before" : null;
 
-	const [centro_start, centro_end] = dataset.centromere[nChr];
+	const [centro_start, centro_end] = has_centromere ? dataset.centromere[nChr] : [];
 
 	for (; search_start <= chr_info_list[0].length && search_end <= chr_info_list[0].length; ++fragId) {
 		try {
