@@ -21,12 +21,7 @@ const dataset = Dataset.loadFromFile(argv_dataset_path);
 
 const genome_info_list = dataset.loadGenomeInfoList();
 
-if (fs.realpathSync(process.argv[1]) == __filename) {
-	main();
-}
-else {
-	console.log("process.argv", process.argv);
-}
+main();
 
 async function main() {
 	program_log(`${dataset.name}.log.txt`, "start");
